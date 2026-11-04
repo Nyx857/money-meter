@@ -849,7 +849,7 @@
 </div>
 
 <div class="backdrop log-backdrop" id="logBackdrop"></div>
-<div class="sheet log-sheet" id="logSheet" role="dialog" aria-label="记录">
+<div class="sheet log-sheet" id="logSheet" role="dialog" aria-modal="true" aria-label="记录">
   <div class="grab"></div>
   <div class="sheet-head">
     <div>
@@ -2686,7 +2686,7 @@
   function openLog(){
     var today = dayKey(Date.now());
     logDate.max = today;
-    if (!logDate.value) logDate.value = today;
+    logDate.value = today;
     renderLog();
     updateLogHint();
     logSheet.classList.add("open");
