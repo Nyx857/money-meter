@@ -10,7 +10,8 @@ const A = new Function(
   '\nreturn {basePerSec,dailyWorkSec,shiftSegments,shiftDurationMin,shiftStartTs,shiftEndTs,' +
   'shiftDayFor,shiftMoney,computeTotals,statusAt,otRange,otSec,autoMult,nextPayday,isWorkdayAt,' +
   'isOvernight,startOfDay,dayKey,fmt2,fmtRate,splitAmount,hmToMin,minToHm,fmtDur,otNetMin,monthWorkdayCount,fiTarget,monthsToFI,fmtWan,fmtMonths,' +
-  'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS};'
+  'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS,' +
+  'recordStatus,recordFlagFor,recentRecordKeys};'
 )();
 
 let pass = 0, fail = 0;
@@ -400,6 +401,54 @@ p = A.decodeBackup(JSON.stringify({ v: 4, cfg: { salary: 7000, breaks: [{ start:
 ok('v4 备份能导入', p.ok && p.version === 4 && p.cfg.salary === 7000);
 p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' } }));
 ok('老备份导入时自动迁移休息', p.ok && p.cfg.breaks.length === 1);
+
+console.log('\n[21] 记录面板');
+let rf;
+ok('请假显示为请假', A.recordStatus(dflt, { '2026-11-04': { off: true } }, '2026-11-04').text === '请假');
+ok('节假日显示 ×3', A.recordStatus(dflt, { '2026-11-04': { holiday: true } }, '2026-11-04').text === '节假日 ×3');
+ok('加班显示倍率', A.recordStatus(dflt, { '2026-11-04': { ot: true, mult: 1.5 } }, '2026-11-04').text === '加班 ×1.5');
+ok('没有 mult 按星期自动', A.recordStatus(dflt, { '2026-11-07': { worked: true } }, '2026-11-07').text === '休息日上班 ×2');
+ok('只有倍率的脏数据不显示', A.recordStatus(dflt, { '2026-11-04': { mult: 2 } }, '2026-11-04') === null);
+ok('不存在的日期不显示', A.recordStatus(dflt, {}, 'foo') === null);
+
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 4, 0, 0)), 'ot');
+ok('工作日可补加班', rf.ok && rf.flag.ot === true && rf.flag.mult === 1.5);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 7, 0, 0)), 'ot');
+ok('休息日不能补加班', !rf.ok && rf.error.length > 0);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 7, 0, 0)), 'worked');
+ok('休息日可补上班 ×2', rf.ok && rf.flag.worked === true && rf.flag.mult === 2);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 4, 0, 0)), 'worked');
+ok('工作日不能补休息日上班', !rf.ok);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 4, 0, 0)), 'off');
+ok('工作日可补请假', rf.ok && rf.flag.off === true);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 7, 0, 0)), 'off');
+ok('休息日不用请假', !rf.ok);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 4, 0, 0)), 'holiday');
+ok('工作日补节假日', rf.ok && rf.flag.holiday === true && !rf.flag.worked);
+rf = A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 7, 0, 0)), 'holiday');
+ok('周末补节假日 → holiday + worked', rf.ok && rf.flag.holiday === true && rf.flag.worked === true);
+ok('未知类型被拒绝', !A.recordFlagFor(dflt, A.startOfDay(at(2026, 11, 4, 0, 0)), 'x').ok);
+
+// 验收：给昨天补一条加班，本月金额随之变化
+const yTs = A.startOfDay(at(2026, 11, 4, 0, 0));
+rf = A.recordFlagFor(dflt, yTs, 'ot');
+const mBefore = A.computeTotals(dflt, {}, at(2026, 11, 5, 0, 30)).month;
+const mAfter = A.computeTotals(dflt, { '2026-11-04': rf.flag }, at(2026, 11, 5, 0, 30)).month;
+ok('补录后本月金额变大', mAfter > mBefore);
+eq('正好多出一次加班的钱', mAfter - mBefore, 210 * 60 * b2 * 1.5, 0.001);
+
+const flags21 = {
+  '2026-11-04': { ot: true, mult: 1.5 },
+  '2026-11-02': { off: true },
+  '2026-11-03': { mult: 2 },
+  '2026-09-01': { worked: true, mult: 2 }
+};
+let rr = A.recentRecordKeys(dflt, flags21, at(2026, 11, 5, 10, 0), 30);
+ok('倒序排列', rr.keys[0] === '2026-11-04' && rr.keys[1] === '2026-11-02');
+eq('无效标记不计入', rr.keys.length, 2);
+eq('更早的单独计数', rr.older, 1);
+rr = A.recentRecordKeys(dflt, flags21, at(2026, 11, 5, 10, 0), 2);
+ok('窗口 2 天只剩 11/04', rr.keys.length === 1 && rr.keys[0] === '2026-11-04');
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);

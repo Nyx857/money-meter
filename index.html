@@ -451,6 +451,57 @@
   }
   .danger:active{color:var(--red)}
 
+  /* ---------- 记录 ---------- */
+  .log-backdrop{z-index:60}
+  .log-sheet{z-index:61}
+  .log-add{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-top:2px}
+  .log-add input[type="date"], .log-add select{
+    width:100%;height:44px;padding:0 10px;border-radius:12px;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.075);
+    color:var(--text);font-family:inherit;font-size:14px;outline:none;
+    color-scheme:dark;transition:.18s;
+  }
+  .log-add input[type="date"]:focus, .log-add select:focus{
+    border-color:rgba(247,201,72,.45);background:rgba(247,201,72,.06);
+  }
+  .log-add select option{background:#161a1f;color:var(--text)}
+  .log-add-btn{
+    grid-column:1 / -1;
+    height:44px;border:0;border-radius:12px;cursor:pointer;
+    font-family:inherit;font-size:13.5px;font-weight:700;color:#1a1204;
+    background:linear-gradient(135deg,#ffd76a,#f7b21a);
+    box-shadow:0 8px 22px -12px rgba(247,178,26,.6);
+  }
+  .log-add-btn:active{transform:scale(.985)}
+  .log-list{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+  .log-row{
+    display:flex;align-items:center;gap:9px;padding:10px 11px;
+    border-radius:13px;background:rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.06);
+  }
+  .log-date{display:flex;flex-direction:column;gap:1px;flex:none;width:78px;min-width:0}
+  .log-date b{font-size:13px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .log-date span{font-size:10px;color:var(--dim);white-space:nowrap}
+  .log-tag{
+    flex:none;padding:4px 8px;border-radius:7px;font-size:11px;line-height:1.2;
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap;
+  }
+  .log-tag.ot{color:#ffd0a0;border-color:rgba(255,166,61,.35);background:rgba(255,166,61,.09)}
+  .log-tag.off{color:#a9c2ff;border-color:rgba(120,160,255,.3);background:rgba(120,160,255,.08)}
+  .log-tag.worked{color:#9fe8c4;border-color:rgba(61,220,151,.3);background:rgba(61,220,151,.08)}
+  .log-tag.holiday{color:#ffe2a0;border-color:rgba(247,201,72,.35);background:rgba(247,201,72,.1)}
+  .log-del{
+    margin-left:auto;width:30px;height:30px;flex:none;border-radius:9px;
+    border:1px solid var(--line);background:transparent;color:#6a737f;
+    font-family:inherit;font-size:16px;line-height:1;cursor:pointer;
+    display:grid;place-items:center;transition:.16s;
+  }
+  .log-del:active{color:var(--red);border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.07)}
+  .log-empty{font-size:11.5px;color:#4b545f;text-align:center;padding:26px 12px;line-height:1.7}
+  .log-empty[hidden]{display:none}
+  .log-older{font-size:10.5px;color:#4b545f;text-align:center;padding:12px 0 4px;line-height:1.6}
+  .log-older[hidden]{display:none}
+
   /* ---------- 备份 / 恢复 ---------- */
   .data-row{display:flex;gap:9px}
   .data-btn{
@@ -496,7 +547,7 @@
 
   /* ---------- toast ---------- */
   .toast{
-    position:fixed;left:50%;bottom:calc(var(--safe-b) + 26px);z-index:60;
+    position:fixed;left:50%;bottom:calc(var(--safe-b) + 26px);z-index:80;
     transform:translate(-50%,14px);
     background:rgba(28,32,38,.96);border:1px solid rgba(255,255,255,.1);
     color:#e9eef4;font-size:12.5px;padding:10px 16px;border-radius:12px;
@@ -747,6 +798,19 @@
       <div class="hint">扣掉通胀后的实际收益。保守填 4–5，别按牛市算。</div>
     </div>
 
+    <div class="section">记录</div>
+
+    <div class="field">
+      <label>补录漏掉的标记</label>
+      <div class="data-row">
+        <button type="button" class="data-btn" id="openLogBtn">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+          打开记录
+        </button>
+      </div>
+      <div class="hint">忘了点下班、三天前忘了标加班，可以在这里补，也可以删掉记错的那天。</div>
+    </div>
+
     <div class="section">备份</div>
 
     <div class="field">
@@ -781,6 +845,36 @@
       <button type="button" class="ghost" id="dataAlt">复制</button>
       <button type="button" class="save" id="dataPrimary">完成</button>
     </div>
+  </div>
+</div>
+
+<div class="backdrop log-backdrop" id="logBackdrop"></div>
+<div class="sheet log-sheet" id="logSheet" role="dialog" aria-label="记录">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <div>
+      <h2>记录</h2>
+      <p class="sub">补录漏掉的加班 / 请假，或删掉记错的那天。</p>
+    </div>
+    <button class="sheet-close" id="closeLog" aria-label="关闭">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="sheet-body">
+    <div class="log-add">
+      <input type="date" id="logDate" aria-label="日期">
+      <select id="logType" aria-label="记录类型">
+        <option value="ot">加班</option>
+        <option value="off">请假</option>
+        <option value="worked">休息日上班</option>
+        <option value="holiday">节假日上班</option>
+      </select>
+      <button type="button" class="log-add-btn" id="logAdd">记上这一天</button>
+    </div>
+    <div class="hint" id="logHint">选日期后会显示这天是工作日还是休息日。</div>
+    <div class="log-list" id="logList"></div>
+    <div class="log-empty" id="logEmpty">还没有记录。主界面点「今天加班」或「今天不上班」，也会记在这里。</div>
+    <div class="log-older" id="logOlder" hidden></div>
   </div>
 </div>
 
@@ -1414,6 +1508,59 @@
       if (Object.keys(f).length) out[k] = f;
     });
     return out;
+  }
+
+  /* ---------------- 记录面板：纯函数 ---------------- */
+
+  // 一条记录显示成什么；没有可展示的状态返回 null
+  function recordStatus(cfg, dayFlags, key){
+    var ts = new Date(key + "T00:00:00").getTime();
+    if (!isFinite(ts)) return null;
+    var f = (dayFlags && dayFlags[key]) || {};
+    if (f.off) return { key: "off", text: "请假" };
+    if (f.holiday) return { key: "holiday", text: "节假日 ×" + multText(Number(cfg.otHoliday) || 3) };
+    if (f.ot) return { key: "ot", text: "加班 ×" + multText(Number(f.mult) || autoMult(cfg, ts)) };
+    if (f.worked) return { key: "worked", text: "休息日上班 ×" + multText(Number(f.mult) || autoMult(cfg, ts)) };
+    return null;
+  }
+
+  // 补录某个日期的某种状态：type = ot | off | worked | holiday
+  function recordFlagFor(cfg, dayTs, type){
+    var workday = isWorkdayAt(cfg, dayTs);
+    if (type === "ot"){
+      if (!workday) return { ok: false, error: "这天不是工作日，要补就选「休息日上班」" };
+      return { ok: true, flag: { ot: true, mult: Number(cfg.otWeekday) || 1.5 } };
+    }
+    if (type === "off"){
+      if (!workday) return { ok: false, error: "这天本来就是休息日，不用请假" };
+      return { ok: true, flag: { off: true } };
+    }
+    if (type === "worked"){
+      if (workday) return { ok: false, error: "这天是工作日，直接算上班，不用补" };
+      return { ok: true, flag: { worked: true, mult: Number(cfg.otWeekend) || 2 } };
+    }
+    if (type === "holiday"){
+      // 节假日落在周末：holiday + worked，倍率仍按节假日
+      return { ok: true, flag: workday ? { holiday: true } : { holiday: true, worked: true } };
+    }
+    return { ok: false, error: "不认识的记录类型" };
+  }
+
+  // 最近 days 天的记录 key（倒序）+ 更早的条数
+  function recentRecordKeys(cfg, dayFlags, now, days){
+    var n = Math.max(1, days || 30);
+    var cutoff = addDays(startOfDay(now), -(n - 1));
+    var keys = [], older = 0;
+    Object.keys(dayFlags || {}).forEach(function(k){
+      if (!recordStatus(cfg, dayFlags, k)) return;
+      var ts = new Date(k + "T00:00:00").getTime();
+      if (!isFinite(ts)) return;
+      if (ts >= cutoff) keys.push(k);
+      else older += 1;
+    });
+    keys.sort();
+    keys.reverse();
+    return { keys: keys, older: older };
   }
 
   // 解析一段备份文本；失败时 error 是给用户看的一句话
@@ -2531,8 +2678,123 @@
     if (ev.target === dataModal) closeData();
   });
 
+  /* ---------- 记录面板 ---------- */
+  var logSheet = $("logSheet"), logBackdrop = $("logBackdrop");
+  var logDate = $("logDate"), logType = $("logType"), logList = $("logList");
+  var logEmpty = $("logEmpty"), logOlder = $("logOlder"), logHint = $("logHint");
+
+  function openLog(){
+    var today = dayKey(Date.now());
+    logDate.max = today;
+    if (!logDate.value) logDate.value = today;
+    renderLog();
+    updateLogHint();
+    logSheet.classList.add("open");
+    logBackdrop.classList.add("open");
+  }
+
+  function closeLog(){
+    logSheet.classList.remove("open");
+    logBackdrop.classList.remove("open");
+  }
+
+  function updateLogHint(){
+    var k = logDate.value;
+    var ts = new Date(k + "T00:00:00").getTime();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k || "") || !isFinite(ts) || dayKey(ts) !== k){
+      logHint.textContent = "选个日期和类型，就能补上那一天。";
+      return;
+    }
+    var d = new Date(ts);
+    var wd = isWorkdayAt(state.cfg, ts) ? "工作日" : "休息日";
+    logHint.textContent = (d.getMonth() + 1) + " 月 " + d.getDate() + " 日 周" + WEEK_CN[d.getDay()]
+      + " · " + wd + " · 补录会立刻算进本月金额";
+  }
+
+  function logRowEl(key){
+    var st = recordStatus(state.cfg, state.dayFlags, key);
+    var d = new Date(key + "T00:00:00");
+    var row = document.createElement("div");
+    row.className = "log-row";
+
+    var date = document.createElement("div");
+    date.className = "log-date";
+    var b = document.createElement("b");
+    b.textContent = (d.getMonth() + 1) + "/" + pad2(d.getDate());
+    var w = document.createElement("span");
+    var sameYear = d.getFullYear() === new Date().getFullYear();
+    w.textContent = "周" + WEEK_CN[d.getDay()] + (sameYear ? "" : " · " + d.getFullYear());
+    date.appendChild(b);
+    date.appendChild(w);
+
+    var tag = document.createElement("span");
+    tag.className = "log-tag " + st.key;
+    tag.textContent = st.text;
+
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "log-del";
+    del.setAttribute("data-key", key);
+    del.setAttribute("aria-label", "删除 " + key + " 的记录");
+    del.textContent = "×";
+
+    row.appendChild(date);
+    row.appendChild(tag);
+    row.appendChild(del);
+    return row;
+  }
+
+  function renderLog(){
+    var res = recentRecordKeys(state.cfg, state.dayFlags, Date.now(), 30);
+    logList.innerHTML = "";
+    for (var i = 0; i < res.keys.length; i++) logList.appendChild(logRowEl(res.keys[i]));
+    logEmpty.hidden = res.keys.length > 0;
+    logOlder.hidden = !(res.older > 0);
+    if (res.older > 0) logOlder.textContent = "还有 " + res.older + " 天更早的标记，可以在设置里一次性清空。";
+  }
+
+  function addLog(){
+    var k = logDate.value;
+    var ts = new Date(k + "T00:00:00").getTime();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k || "") || !isFinite(ts) || dayKey(ts) !== k){
+      toast("先选个有效日期");
+      return;
+    }
+    if (ts > startOfDay(Date.now())){ toast("还没到的日子不用补录"); return; }
+    var res = recordFlagFor(state.cfg, ts, logType.value);
+    if (!res.ok){ toast(res.error); return; }
+    var had = !!recordStatus(state.cfg, state.dayFlags, k);
+    state.dayFlags[k] = res.flag;
+    save();
+    cache = {};
+    render();
+    renderLog();
+    toast((had ? "已更新 " : "已记上 ") + (new Date(ts).getMonth() + 1) + "/" + new Date(ts).getDate());
+  }
+
+  $("openLogBtn").addEventListener("click", openLog);
+  $("closeLog").addEventListener("click", closeLog);
+  logBackdrop.addEventListener("click", closeLog);
+  logDate.addEventListener("change", updateLogHint);
+  $("logAdd").addEventListener("click", addLog);
+
+  logList.addEventListener("click", function(ev){
+    var btn = ev.target.closest ? ev.target.closest(".log-del") : null;
+    if (!btn) return;
+    var k = btn.getAttribute("data-key");
+    if (!k || !state.dayFlags[k]) return;
+    delete state.dayFlags[k];
+    save();
+    cache = {};
+    render();
+    renderLog();
+    toast("已删除 " + k + " 的记录");
+  });
+
   document.addEventListener("keydown", function(ev){
-    if (ev.key === "Escape" && dataModal.classList.contains("open")) closeData();
+    if (ev.key !== "Escape") return;
+    if (dataModal.classList.contains("open")) closeData();
+    else if (logSheet.classList.contains("open")) closeLog();
   });
 
   document.addEventListener("visibilitychange", function(){
@@ -2586,7 +2848,12 @@
     openData: openData,
     closeData: closeData,
     DEFAULTS: DEFAULTS,
-    CONFIG_VERSION: CONFIG_VERSION
+    CONFIG_VERSION: CONFIG_VERSION,
+    recordStatus: recordStatus,
+    recordFlagFor: recordFlagFor,
+    recentRecordKeys: recentRecordKeys,
+    openLog: openLog,
+    closeLog: closeLog
   };
 })();
 </script>
