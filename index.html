@@ -839,13 +839,6 @@
         <div class="hint">填你实际拿到手的那个数，看着更爽。</div>
       </div>
 
-      <div class="field">
-        <label for="inWorkDays">月计薪天数</label>
-        <input type="number" id="inWorkDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
-        <div class="hint" id="daysHint">法定平均值 21.75，按实际工作日可以填 22。</div>
-        <div class="hint" id="cycleDaysHint" hidden>上 <b id="cycleHintWork">4</b> 休 <b id="cycleHintRest">1</b> · 平均每月 <b id="cycleHintAvg">24.33</b> 个班 <button type="button" class="link-btn" id="useCycleDays">按这个填</button></div>
-      </div>
-
       <div class="section">上班时间</div>
 
       <div class="field">
@@ -909,6 +902,13 @@
           <div class="cycle-preview" id="cyclePreview"></div>
         </div>
         <div class="hint">上四休一、做一休一这类轮班选「上几休几」，每周固定的就选「按星期」。</div>
+      </div>
+
+      <div class="field">
+        <label for="inWorkDays">月计薪天数</label>
+        <input type="number" id="inWorkDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
+        <div class="hint" id="daysHint">法定平均值 21.75，按实际工作日可以填 22。</div>
+        <div class="hint" id="cycleDaysHint" hidden>上 <b id="cycleHintWork">4</b> 休 <b id="cycleHintRest">1</b> · 平均每月 <b id="cycleHintAvg">24.33</b> 个班 <button type="button" class="link-btn" id="useCycleDays">按这个填</button></div>
       </div>
 
       <div class="section">发薪</div>
@@ -1153,8 +1153,12 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.3.5";
+  var APP_VERSION = "1.3.6";
   var CHANGELOG = [
+    { version: "1.3.6", date: "2026-11-05", items: [
+      "「月计薪天数」移到「上班怎么排」之后：选完排班再按平均班数填，顺序更顺",
+      "循环排班下面的「按这个填」不用再往上找"
+    ] },
     { version: "1.3.5", date: "2026-11-05", items: [
       "主界面底部加了暖色渐变，iPhone 安全区 / 底边不再是一块纯黑",
       "设置、记录面板禁止左右拖动：班次页只能上下滚",
