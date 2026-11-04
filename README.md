@@ -24,6 +24,7 @@ Most "salary tickers" assume your rate never changes. In reality overtime pays 1
 - **Categorized settings** — shift / overtime / freedom / data / update, each on its own tab
 - **Built-in changelog** — version, date and notes for every release; a gold dot on the gear when something new ships
 - **One-screen dashboard** — the main view scales with viewport height, so it fits a phone screen without scrolling
+- **Offline-first PWA** — a service worker caches the app; after the first visit it opens instantly, even without a network
 - **Month view** — money, days worked, overtime days, average per shift
 - **Freedom view** — 4% rule target, years until you can stop, and the two levers: save the overtime, spend less
 

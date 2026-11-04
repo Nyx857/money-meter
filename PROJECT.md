@@ -11,21 +11,23 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.6**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.3.7**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
 | 项 | 值 |
 | --- | --- |
-| 入口 | `index.html`（全部 HTML/CSS/JS 内联，约 86KB） |
+| 入口 | `index.html`（全部 HTML/CSS/JS 内联，约 140KB） |
 | 依赖 | 无。没有 package.json、没有构建步骤 |
-| 存储 | localStorage，key = `money-meter.v3` |
+| 离线 | `sw.js` Service Worker：导航缓存优先，静态资源缓存优先，后台更新 |
+| 存储 | localStorage，key = `money-meter.v3`；SW 缓存名 `money-meter-<版本>` |
 | 后端 | 无。纯静态，不联网 |
 
 ## 3. 文件地图
 
 ```
 index.html          全部界面和逻辑（改这里 90% 的情况就够了）
+sw.js               Service Worker：缓存页面/图标，桌面冷启动秒开，支持离线
 manifest.json       PWA 配置（加主屏）
 icon.svg / *.png    图标
 _headers            Cloudflare 缓存策略（只给图标长缓存）
@@ -124,7 +126,8 @@ node tests/core.test.mjs
 # 并在 tests 里补「老配置/老备份仍能读」的用例；localStorage key 不要轻易升版本。
 
 # 发版时：改 APP_VERSION、在 CHANGELOG 顶部加一条（版本号 / 日期 / 内容），
-# 然后同步 README 与 PROJECT 的版本号和测试数。
+# 同步升 sw.js 里的 VERSION（缓存名）；然后同步 README 与 PROJECT 的版本号和测试数。
+# SW 是缓存优先：新版本会在下一次打开时生效，属预期。
 
 # 3. 视觉/交互自检（可选但推荐）：真渲染截图 + 控制台探针
 python3 -m http.server 8782 --bind 127.0.0.1 &
@@ -176,6 +179,8 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | fit 步骤漏了收间距 | 568 高度下被迫藏掉四格 | `FIT_STEPS` 必须包含 `fit-6`，顺序不能跳 |
 | 设置页能左右滑 | `overflow-y:auto` 隐式把 `overflow-x` 也变成 `auto`，iOS 可横向橡皮筋 | `.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`；`.sheet-tabs` 同样处理 |
 | 底部安全区纯黑 | 背景 radial 在 108% 处，可视区底部只剩底色 | `body::before` 底部 radial 移到 104% 并加一层向上的线性渐变 |
+| 桌面打开黑屏几秒 | PWA 冷启动每次走网络，HTML 到之前只有 launch screen | `sw.js` 导航缓存优先；第一次打开建立缓存，之后秒开；`_headers` 给 index/sw 设 no-cache |
+| 线上验证看到旧版 | SW 缓存优先，后台更新下一次才生效 | 正常现象；发版时升 `sw.js` 的 `VERSION`，验证用新端口或等一次重开 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
 ## 10. 版本记录
@@ -192,6 +197,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.4 | 页面级滚动锁死；按安全区后的真实高度用 JS 逐级隐藏（fit-1…fit-9），iPhone 刘海 / Home 条不再顶出滚动 |
 | v1.3.5 | 底部暖色渐变（安全区不再纯黑）；设置 / 记录面板禁止横向拖动；页面级横向滑动也锁掉 |
 | v1.3.6 | 「月计薪天数」从「钱」移到「上班怎么排」之后，先排班再折算 |
+| v1.3.7 | 加 Service Worker：页面优先读缓存（第二次起秒开）、离线可开、后台更新；清理无用样式与调试截图 |
 
 ## 11. 待办清单
 
@@ -211,6 +217,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.4 安全区拟合**：页面滚动锁死，主界面按 `visualViewport - safe-area` 的实际高度逐级隐藏；模拟 47/34 安全区后 852/844/812/780/700/667/640/568/480 全部零溢出。
 - **v1.3.5 细节**：`body::before` 底部暖色渐变，`html/body` 横向锁死，`.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`。
 - **v1.3.6 顺序调整**：月计薪天数字段移到排班控件之后，循环预览和「按这个填」在同一屏。
+- **v1.3.7 启动缓存**：`sw.js` 缓存导航与静态资源；发版改 `VERSION`；更新下一次打开生效。已用停掉本地服务器的方式验证离线可开。
 
 ### 候选（未排期）
 
