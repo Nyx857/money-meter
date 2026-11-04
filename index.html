@@ -30,9 +30,11 @@
     --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html{height:auto;overflow-x:hidden}
+  html{height:100%;overflow:hidden}
   body{
     margin:0;
+    height:100%;
+    overflow:hidden;
     min-height:100vh;
     min-height:100dvh;
     min-height:var(--vh100, 100dvh);
@@ -63,9 +65,10 @@
   .app{
     position:relative;
     z-index:1;
-    min-height:100vh;
-    min-height:100dvh;
-    min-height:var(--vh100, 100dvh);
+    height:100vh;
+    height:100dvh;
+    height:var(--vh100, 100dvh);
+    overflow:hidden;
     max-width:520px;
     margin:0 auto;
     padding:calc(var(--safe-t) + clamp(8px,1.65vh,14px)) 18px calc(var(--safe-b) + clamp(12px,2.6vh,22px));
@@ -76,6 +79,7 @@
   }
 
   /* ---------- header ---------- */
+  .app.allow-scroll{overflow-y:auto}
   header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:clamp(28px,4vh,34px)}
   .head-actions{display:flex;align-items:center;gap:6px;flex:none}
   .clock{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
@@ -671,47 +675,29 @@
     .app{justify-content:center}
   }
 
-  /* 极短屏（小屏手机 + 浏览器工具栏全开）再收一点：优先保住大数字和按钮 */
-  @media (max-height:780px){
-    .foot{display:none}
-  }
-  @media (max-height:760px){
-    .tile .s{display:none}
-    .tile{min-height:44px}
-  }
-  @media (max-height:600px){
-    .fun{display:none}
-  }
-  /* 自由视图的说明卡在短屏 / 窄屏上收成一小段，避免把整页顶出屏幕 */
-  @media (max-height:620px), (max-width:380px) and (max-height:820px){
-    .explain{padding:10px 12px;font-size:10px;line-height:1.6}
-    .explain-h{font-size:11px;margin-bottom:4px}
+  /* 窄屏：自由视图说明卡收成一段（这是宽度问题，不是高度问题） */
+  @media (max-width:380px){
+    .explain{padding:10px 12px;font-size:11.5px;line-height:1.6}
+    .explain-h{font-size:12px;margin-bottom:4px}
     .explain p{margin-bottom:4px}
     .explain p + p{display:none}
   }
-  @media (max-width:360px){
-    .chip{font-size:11px;padding:4px 6px}
-    .ot-title{font-size:13px}
-    .ot-title .tag{font-size:10.5px;padding:2px 5px}
-  }
-  @media (max-height:580px){
-    .app{gap:5px;padding-bottom:calc(var(--safe-b) + 8px)}
-  }
-  /* 再矮就优先保住金额 / 按钮 / 四格，进度条先让位 */
-  @media (max-height:530px){
-    .bar-head,.bar{display:none}
-  }
-  @media (max-height:500px){
-    .shift-line{display:none}
-  }
-  @media (max-height:490px){
-    .app{padding-top:calc(var(--safe-t) + 6px)}
-    .status{margin-top:0}
-  }
-  /* 极端矮屏 / 横屏：四格先让位，保住金额和操作 */
-  @media (max-height:460px){
-    .grid{display:none}
-  }
+
+  /* 视口高度不够时由 JS 逐级加 class：先藏次要信息，再收紧间距，最后才允许滚动 */
+  .fit-1 .foot{display:none}
+  .fit-2 .tile .s{display:none}
+  .fit-2 .tile{min-height:44px}
+  .fit-3 .fun{display:none}
+  .fit-4 .bar-head,.fit-4 .bar{display:none}
+  .fit-5 .shift-line{display:none}
+  .app.fit-6{gap:5px;padding-bottom:calc(var(--safe-b) + 8px)}
+  .fit-7 .explain{padding:10px 12px;font-size:11.5px;line-height:1.6}
+  .fit-7 .explain-h{font-size:12px;margin-bottom:4px}
+  .fit-7 .explain p{margin-bottom:4px}
+  .fit-7 .explain p + p{display:none}
+  .fit-8 .grid{display:none}
+  .fit-9 .ot-hint{display:none}
+
   @media (prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important}
   }
@@ -1163,8 +1149,13 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.3.3";
+  var APP_VERSION = "1.3.4";
   var CHANGELOG = [
+    { version: "1.3.4", date: "2026-11-05", items: [
+      "按真实可用高度（扣掉刘海 / 底部安全区）自动收紧，iPhone 上不会再因为安全区多出可滚高度",
+      "页面滚动彻底锁死：主界面固定一屏，只有内容真的放不下时才在内容区内部滚",
+      "矮屏按顺序藏页脚 / 四格补充行 / 一句总结 / 进度条，不再无限缩小字号"
+    ] },
     { version: "1.3.3", date: "2026-11-05", items: [
       "主界面字号整体加大、次要文字提亮，金额 / 状态 / 按钮更清楚",
       "分享按钮移到右上角，底部不再占一整条；设置里的字号也一起加大",
@@ -2724,6 +2715,7 @@
     });
     save();
     render();
+    setTimeout(updateAppOverflow, 0);
   }
 
   // 按当前视图生成分享文案
@@ -3255,6 +3247,21 @@
   });
 
   /* ---------- 启动 ---------- */
+  var FIT_STEPS = ["fit-1", "fit-2", "fit-3", "fit-4", "fit-5", "fit-6", "fit-7", "fit-8", "fit-9"];
+
+  function updateAppOverflow(){
+    var app = document.querySelector(".app");
+    if (!app) return;
+    app.classList.remove("allow-scroll");
+    for (var i = 0; i < FIT_STEPS.length; i++) app.classList.remove(FIT_STEPS[i]);
+    if (app.scrollHeight <= app.clientHeight + 1) return;
+    for (var j = 0; j < FIT_STEPS.length; j++){
+      app.classList.add(FIT_STEPS[j]);
+      if (app.scrollHeight <= app.clientHeight + 1) return;
+    }
+    app.classList.add("allow-scroll");
+  }
+
   (function trackViewportHeight(){
     function update(){
       var ae = document.activeElement;
@@ -3262,6 +3269,7 @@
       var vv = window.visualViewport;
       var h = (vv && vv.height) || window.innerHeight || 0;
       if (h > 300) document.documentElement.style.setProperty("--vh100", h + "px");
+      requestAnimationFrame(updateAppOverflow);
     }
     update();
     window.addEventListener("resize", update);
@@ -3271,6 +3279,8 @@
 
   initSelects();
   load();
+  setTimeout(updateAppOverflow, 80);
+  setTimeout(updateAppOverflow, 800);
   if (state.firstRun) markUpdateSeen(true);
   updateUpdateDots();
   renderChangelog();
@@ -3280,8 +3290,13 @@
   render();
   if (state.firstRun) setTimeout(openSheet, 420);
 
+  var frameGuard = 0;
   (function loop(){
     render();
+    if (++frameGuard % 30 === 0){
+      var appNode = document.querySelector(".app");
+      if (appNode && appNode.scrollHeight > appNode.clientHeight + 1) updateAppOverflow();
+    }
     requestAnimationFrame(loop);
   })();
 
@@ -3335,7 +3350,8 @@
     setScheduleMode: setScheduleMode,
     setSheetPane: setSheetPane,
     hasUnseenUpdate: hasUnseenUpdate,
-    updateUpdateDots: updateUpdateDots
+    updateUpdateDots: updateUpdateDots,
+    updateAppOverflow: updateAppOverflow
   };
 })();
 </script>
