@@ -6,12 +6,12 @@
 
 ## 1. 一句话
 
-月薪 → 每秒进账的实时看板，按**班次**计（跨零点算同一班），支持预设加班时段与倍率、法定节假日 3×、多段不计薪休息、上 N 休 M 循环排班、按天补录记录、配置导出/导入，外加一个 4% 法则的「自由」视图。单文件网页，无依赖无构建。
+月薪 → 每秒进账的实时看板，按**班次**计（跨零点算同一班），支持预设加班时段与倍率、法定节假日 3×、多段不计薪休息、上 N 休 M 循环排班、按天补录记录、自动积累的「足迹」历史、配置导出/导入，外加一个 4% 法则的「自由」视图。单文件网页，无依赖无构建。
 
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.8**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.4.0**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -20,7 +20,7 @@
 | 入口 | `index.html`（全部 HTML/CSS/JS 内联，约 140KB） |
 | 依赖 | 无。没有 package.json、没有构建步骤 |
 | 离线 | `sw.js` Service Worker：导航网络优先（900ms 超时）回退干净缓存，静态资源缓存优先 |
-| 存储 | localStorage，key = `money-meter.v3`；SW 缓存名 `money-meter-<版本>` |
+| 存储 | localStorage，key = `money-meter.v3`；含 cfg / dayFlags / history / recordStart；SW 缓存名 `money-meter-<版本>` |
 | 后端 | 无。纯静态，不联网 |
 
 ## 3. 文件地图
@@ -51,6 +51,7 @@ DOM 引用  → el = {...}
 render()  → 每帧一次（rAF），按 state.mode 分支
 交互      → 加班/不上班/节假日按钮、倍率 chips、tab、分享、设置面板
 记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）
+足迹      → snapshotDay() 每班结束存一条；ensureHistory() 自动补记；historyTotals()/heatmapCells() 汇总
 排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
 版本      → APP_VERSION + CHANGELOG → renderChangelog()
@@ -81,9 +82,21 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 17. **未读版本逻辑**：`money-meter.seenVersion` 与 `APP_VERSION` 不同且不是首次使用时，齿轮亮小圆点，打开设置默认落在「更新」页；进入该页就写 seen。首次使用（firstRun）在启动时静默写 seen，避免新用户刚设置完就被提示更新。
 18. **字号有下限**：主界面正文/标签不低于 11px，设置说明不低于 12px；屏幕矮的时候优先隐藏次要块（页脚、四格补充行、进度条、四格），不要把字缩到 9–10px。
 19. **视口高度不要写死**：`html/body` 锁死滚动（`overflow:hidden`），`.app` 用 `--vh100` → `100dvh` → `100vh` 的兜底链，JS 用 `visualViewport.height` 更新。
-20. **安全区会吃掉高度**：刘海机 `safe-t/safe-b` 可能吃掉 80px，按视口高度写的 media query 会误判。主界面改用 `updateAppOverflow()`：从无到有逐级加 `fit-1…fit-9`（页脚→四格补充→总结→进度条→工时行→收间距→说明卡→四格→加班提示），每加一级重新量 `scrollHeight`，全加完还不够才允许 app 内部滚动。不要再用 `@media (max-height)` 隐藏主界面块。
+20. **足迹快照只写一次**：`snapshotDay()` 只对「已结束 + 有收入 + kind != none」的班次生成快照，金额按**生成时**的 cfg 结算；之后改月薪/排班不会改写历史，只有改当天标记才 `dropHistory()` 重算。否则「个人记录」会随配置漂移。
+21. **足迹从 `recordStart` 开始**：首次初始化设为本月 1 号，`ensureHistory()` 从头补记到昨天/今天已结束的班次；不要用自然年或全量回溯，否则新用户会看到一大段伪造历史。
+22. **热力图要跟着数据走**：`hmSig` 里必须带 `historyRev`，否则改完某天标记后快照金额变了、但格子数没变，会继续显示旧格子。
+23. **安全区会吃掉高度**：刘海机 `safe-t/safe-b` 可能吃掉 80px，按视口高度写的 media query 会误判。主界面改用 `updateAppOverflow()`：从无到有逐级加 `fit-1…fit-9`（页脚→四格补充→总结→进度条→工时行→收间距→说明卡→四格→加班提示），每加一级重新量 `scrollHeight`，全加完还不够才允许 app 内部滚动。不要再用 `@media (max-height)` 隐藏主界面块。
 
 ## 6. 数据结构
+
+`state.history`（足迹快照，key 为班次日）：
+
+```js
+{ "2026-11-04": { amount: 380.75, sec: 41400, otSec: 12600, otAmount: 150.86 } }
+```
+
+`state.recordStart`：开始记录的日期（首次初始化 = 本月 1 号），例如 `"2026-11-01"`。
+备份结构升到 `{ v: 5, cfg, dayFlags, recordStart, history }`；导入 v3/v4 老备份会迁移，足迹为空时按导入的 cfg 补记本月。
 
 `state.cfg`（用户配置）：
 
@@ -182,6 +195,8 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 桌面打开黑屏几秒 | PWA 冷启动每次走网络，HTML 到之前只有 launch screen | `sw.js` 导航缓存；第一次打开建立缓存，之后秒开/离线可开；`_headers` 给 index/sw 设 no-cache |
 | iOS PWA「打不开网页」 | 缓存了 Cloudflare 的 `Content-Encoding: br` 响应，Safari 回放时解码失败 | 写缓存前用 `cleanResponse()` 剥掉编码头；导航失败绝不用 `Response.error()` |
 | SW 更新被旧缓存挡住 | 缓存优先导致新版晚一次打开才生效 | 导航改网络优先 + 900ms 超时，兼顾秒开与立即更新 |
+| 休息日也生成了快照 | `regularSec()` 只看时间，不看当天是否上班 | `snapshotDay` 先判断 `m.kind === "none"`；`addTodayLive` 同样处理 |
+| 热力图改完标记不刷新 | 只靠记录条数做签名，金额变了条数没变 | 签名加入 `historyRev`，`ensureHistory`/`dropHistory` 都递增 |
 | 线上验证看到旧版 | SW 缓存优先，后台更新下一次才生效 | 正常现象；发版时升 `sw.js` 的 `VERSION`，验证用新端口或等一次重开 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
@@ -201,6 +216,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.6 | 「月计薪天数」从「钱」移到「上班怎么排」之后，先排班再折算 |
 | v1.3.7 | 加 Service Worker：页面优先读缓存（第二次起秒开）、离线可开、后台更新；清理无用样式与调试截图 |
 | v1.3.8 | 修复 PWA「打不开网页」：缓存响应带 `Content-Encoding: br`，iOS Safari 回放解码失败；写缓存前剥掉编码头；导航改网络优先 + 900ms 超时回退 + 友好离线页 |
+| v1.4.0 | 新增「足迹」：每班结束自动快照、12 周热力图、累计收入/工时/加班；备份升到 v5 并包含 history/recordStart |
 
 ## 11. 待办清单
 
@@ -222,6 +238,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.6 顺序调整**：月计薪天数字段移到排班控件之后，循环预览和「按这个填」在同一屏。
 - **v1.3.7 启动缓存**：`sw.js` 缓存导航与静态资源；发版改 `VERSION`；更新下一次打开生效。已用停掉本地服务器的方式验证离线可开。
 - **v1.3.8 缓存修复**：`cleanResponse()` 去掉 `content-encoding/content-length` 等头再写缓存；导航网络优先、900ms 超时回退；不再返回 `Response.error()`。发版后 SW 会在后台更新，坏缓存随旧 `CACHE` 一起删掉。
+- **v1.4.0 足迹**：本月初起自动补记已结束班次；`state.history` 存金额/工时/加班；12 周热力图 + 累计统计；备份 v5 带上记录。设计灵感来自 Rond 的地理日记，但这里记录的是「时间换来的钱」，不定位、不上传。
 
 ### 候选（未排期）
 

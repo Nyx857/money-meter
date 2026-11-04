@@ -243,6 +243,35 @@
   .ot-hint.warn{color:#ffb56b}
   .ot-hint.good{color:#e8c46a}
 
+  /* ---------- 足迹 ---------- */
+  .history-card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:clamp(10px,1.5vh,13px);
+    display:flex;flex-direction:column;gap:8px;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  }
+  .history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px;color:#aab3bf}
+  .history-head span:last-child{font-size:11px;color:#7c8592;font-variant-numeric:tabular-nums}
+  .heatmap{
+    display:grid;grid-template-columns:repeat(12,1fr);gap:4px;
+    width:min(100%,280px);margin:2px auto;
+  }
+  .hm-cell{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.045);cursor:pointer}
+  .hm-cell.l1{background:rgba(247,201,72,.16)}
+  .hm-cell.l2{background:rgba(247,201,72,.36)}
+  .hm-cell.l3{background:rgba(247,201,72,.62)}
+  .hm-cell.l4{background:rgba(247,201,72,.92)}
+  .hm-cell.today{box-shadow:inset 0 0 0 1px rgba(255,255,255,.8)}
+  .hm-cell.future{opacity:.18;cursor:default}
+  .hm-cell.before{opacity:.4}
+  .history-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:#5d6673}
+  .history-foot .lg{display:flex;align-items:center;gap:3px;white-space:nowrap}
+  .history-foot i{width:8px;height:8px;border-radius:2px;display:inline-block;background:rgba(255,255,255,.045)}
+  .history-foot i.l1{background:rgba(247,201,72,.16)}
+  .history-foot i.l2{background:rgba(247,201,72,.36)}
+  .history-foot i.l3{background:rgba(247,201,72,.62)}
+  .history-foot i.l4{background:rgba(247,201,72,.92)}
+
   /* ---------- tiles ---------- */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(6px,1.2vh,10px)}
   .tile{
@@ -727,6 +756,7 @@
       <button role="tab" data-mode="month" aria-selected="false">本月</button>
       <button role="tab" data-mode="rate" aria-selected="false">速率</button>
       <button role="tab" data-mode="free" aria-selected="false">自由</button>
+      <button role="tab" data-mode="history" aria-selected="false">足迹</button>
     </div>
     <div class="amount-label" id="amountLabel">本班次已入账</div>
     <div class="amount" id="amount" title="点一下切换">
@@ -759,6 +789,18 @@
       <button class="off-btn holiday-btn" id="holidayBtn" hidden><span id="holidayBtnLabel">按节假日算</span></button>
     </div>
     <div class="ot-hint" id="otHint"></div>
+  </section>
+
+  <section class="history-card" id="historyCard" style="display:none">
+    <div class="history-head">
+      <span>最近 12 周</span>
+      <span id="historyRange">—</span>
+    </div>
+    <div class="heatmap" id="heatmap"></div>
+    <div class="history-foot">
+      <span class="lg">少 <i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> 多</span>
+      <span>按排班估算 · 点格子看当天</span>
+    </div>
   </section>
 
   <div class="grid">
@@ -998,7 +1040,7 @@
 
       <div class="field">
         <button type="button" class="clear-btn" id="clearLog">清空加班 / 请假标记</button>
-        <div class="hint">只删日期标记，配置和月薪不动。</div>
+        <div class="hint">只删日期标记；配置、月薪和足迹记录都会保留。</div>
       </div>
     </div>
 
@@ -1076,7 +1118,7 @@
 
   // 备份文件里的配置结构版本（和 localStorage key 的 v3 不是一回事）
   // v3 = 单段 lunch*，v4 = breaks 数组
-  var CONFIG_VERSION = 4;
+  var CONFIG_VERSION = 5;
 
   // 配置默认值：导出 / 导入 / 迁移都以此为准
   var DEFAULTS = {
@@ -1143,8 +1185,14 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.3.8";
+  var APP_VERSION = "1.4.0";
   var CHANGELOG = [
+    { version: "1.4.0", date: "2026-11-05", items: [
+      "新增「足迹」页：每个已结束的班次自动记一条，累计收入 / 工时 / 加班",
+      "12 周热力图，点格子看当天；记录从本月开始，打开就自动补记，不用打卡",
+      "导出 / 导入包含足迹；历史金额按当时配置结算，改月薪不会改写旧记录",
+      "停在哪一页，下次打开还是哪一页；没开工时可以翻足迹"
+    ] },
     { version: "1.3.8", date: "2026-11-05", items: [
       "修复桌面版偶发「打不开网页」：缓存里的 HTML 带着 br 编码头，iOS Safari 回放时会解码失败，现在写缓存前去掉编码头",
       "启动改成网络优先（900ms 超时）回退缓存：新版本立即生效，慢网 / 断网也不会白屏",
@@ -1864,9 +1912,107 @@
     return { keys: keys, older: older };
   }
 
+  /* ---------------- 足迹：每日快照 ---------------- */
+
+  // 一个班次结束后存一条记录。金额按当时的配置结算，之后改月薪不会改写历史。
+  function snapshotDay(cfg, dayFlags, dayTs, now){
+    if (now < shiftActiveEnd(cfg, dayFlags, dayTs)) return null;
+    var m = shiftMoney(cfg, dayFlags, dayTs, now);
+    var amount = m.regular + m.ot;
+    if (m.kind === "none" || !(amount > 0)) return null;
+    var sec;
+    if (m.kind === "holiday" || m.kind === "weekend") sec = m.otSec;
+    else sec = regularSec(cfg, dayTs, now) + m.otSec;
+    if (!(sec > 0)) return null;
+    return {
+      amount: Math.round(amount * 100) / 100,
+      sec: Math.round(sec),
+      otSec: Math.round(m.otSec),
+      otAmount: Math.round(m.ot * 100) / 100,
+      kind: m.kind
+    };
+  }
+
+  function normalizeHistory(raw){
+    var out = {};
+    if (!isPlainObject(raw)) return out;
+    Object.keys(raw).forEach(function(k){
+      if (!isValidDateKey(k)) return;
+      var v = raw[k];
+      if (!isPlainObject(v)) return;
+      var amount = Number(v.amount), sec = Number(v.sec);
+      var otSec = Number(v.otSec), otAmount = Number(v.otAmount);
+      if (!isFinite(amount) || amount < 0) amount = 0;
+      if (!isFinite(sec) || sec < 0) sec = 0;
+      if (!isFinite(otSec) || otSec < 0) otSec = 0;
+      if (!isFinite(otAmount) || otAmount < 0) otAmount = 0;
+      if (!(amount > 0) && !(sec > 0)) return;
+      out[k] = {
+        amount: Math.round(amount * 100) / 100,
+        sec: Math.round(sec),
+        otSec: Math.round(otSec),
+        otAmount: Math.round(otAmount * 100) / 100
+      };
+    });
+    return out;
+  }
+
+  function historyTotals(history){
+    var t = { amount: 0, sec: 0, otSec: 0, otAmount: 0, days: 0 };
+    Object.keys(history || {}).forEach(function(k){
+      var h = history[k];
+      if (!h) return;
+      t.amount += Number(h.amount) || 0;
+      t.sec += Number(h.sec) || 0;
+      t.otSec += Number(h.otSec) || 0;
+      t.otAmount += Number(h.otAmount) || 0;
+      if ((Number(h.sec) || 0) > 0) t.days += 1;
+    });
+    return t;
+  }
+
+  function historyMonth(history, ym){
+    var t = { amount: 0, sec: 0, otSec: 0, otAmount: 0, days: 0 };
+    Object.keys(history || {}).forEach(function(k){
+      if (k.indexOf(ym) !== 0) return;
+      var h = history[k];
+      if (!h) return;
+      t.amount += Number(h.amount) || 0;
+      t.sec += Number(h.sec) || 0;
+      t.otSec += Number(h.otSec) || 0;
+      t.otAmount += Number(h.otAmount) || 0;
+      if ((Number(h.sec) || 0) > 0) t.days += 1;
+    });
+    return t;
+  }
+
+  // 最近 N 周的热力图：周一为一周起点，最后一周包含今天
+  function heatmapCells(history, now, weeks){
+    weeks = Math.max(4, Math.min(26, weeks || 12));
+    var today = startOfDay(now);
+    var dow = (new Date(today).getDay() + 6) % 7;
+    var weekStart = addDays(today, -dow);
+    var start = addDays(weekStart, -(weeks - 1) * 7);
+    var cells = [];
+    for (var i = 0; i < weeks * 7; i++){
+      var ts = addDays(start, i);
+      var k = dayKey(ts);
+      var h = (history || {})[k];
+      cells.push({
+        key: k, ts: ts,
+        sec: h ? Number(h.sec) || 0 : 0,
+        amount: h ? Number(h.amount) || 0 : 0,
+        future: ts > today,
+        today: ts === today
+      });
+    }
+    return cells;
+  }
+
   // 解析一段备份文本；失败时 error 是给用户看的一句话
   function decodeBackup(raw){
-    var out = { ok: false, error: "", version: 0, cfg: null, dayFlags: null, count: 0 };
+    var out = { ok: false, error: "", version: 0, cfg: null, dayFlags: null, count: 0,
+      recordStart: "", history: {}, historyCount: 0 };
     if (typeof raw !== "string" || !raw.trim()){
       out.error = "还没有内容，先把导出的文字粘进来";
       return out;
@@ -1882,6 +2028,9 @@
     out.cfg = cfg;
     out.dayFlags = normalizeDayFlags(obj.dayFlags);
     out.count = Object.keys(out.dayFlags).length;
+    out.recordStart = isValidDateKey(obj.recordStart) ? obj.recordStart : "";
+    out.history = normalizeHistory(obj.history);
+    out.historyCount = Object.keys(out.history).length;
     out.ok = true;
     return out;
   }
@@ -1895,6 +2044,9 @@
   var state = {
     cfg: defaultCfg(),
     dayFlags: {},
+    history: {},
+    recordStart: "",
+    historyRev: 0,
     mode: "today",
     firstRun: false
   };
@@ -1906,7 +2058,7 @@
     try {
       var obj = JSON.parse(raw);
       state.cfg = normalizeCfg(obj.cfg, true) || defaultCfg();
-      state.mode = ["today", "month", "rate", "free"].indexOf(obj.mode) >= 0 ? obj.mode : "today";
+      state.mode = ["today", "month", "rate", "free", "history"].indexOf(obj.mode) >= 0 ? obj.mode : "today";
       var now = Date.now();
       var keep = {};
       var flags = obj.dayFlags || {};
@@ -1915,15 +2067,52 @@
         if (isFinite(t) && t > now - 150 * DAY_MS) keep[k] = flags[k];
       });
       state.dayFlags = keep;
+      state.history = normalizeHistory(obj.history);
+      state.recordStart = isValidDateKey(obj.recordStart) ? obj.recordStart : "";
     } catch (e) { state.firstRun = true; }
   }
 
   function save(){
     try {
       localStorage.setItem(KEY, JSON.stringify({
-        cfg: state.cfg, dayFlags: state.dayFlags, mode: state.mode
+        cfg: state.cfg, dayFlags: state.dayFlags, mode: state.mode,
+        recordStart: state.recordStart, history: state.history
       }));
     } catch (e) {}
+  }
+
+  // 自动补记：从 recordStart 到今天的每个已结束班次，各存一条快照
+  function ensureHistory(now){
+    var changed = false;
+    if (!isValidDateKey(state.recordStart)){
+      state.recordStart = dayKey(startOfMonth(now));
+      changed = true;
+    }
+    var start = new Date(state.recordStart + "T00:00:00").getTime();
+    var end = startOfDay(now);
+    var d = start, guard = 0;
+    while (d <= end && guard++ < 400){
+      var k = dayKey(d);
+      if (!state.history[k]){
+        var snap = snapshotDay(state.cfg, state.dayFlags, d, now);
+        if (snap){ state.history[k] = snap; changed = true; }
+      }
+      d = addDays(d, 1);
+    }
+    if (changed){
+      state.historyRev += 1;
+      save();
+    }
+  }
+
+  // 改了某天标记后，把那天已经生成的快照删掉，下一次 ensureHistory 重算
+  function dropHistory(dayTs){
+    var k = dayKey(dayTs);
+    if (state.history[k]){
+      delete state.history[k];
+      state.historyRev += 1;
+      save();
+    }
   }
 
   /* ==========================================================
@@ -1950,6 +2139,7 @@
       };
     }),
     funLine: $("funLine"), explainCard: $("explainCard"), toast: $("toast"),
+    historyCard: $("historyCard"), heatmap: $("heatmap"), historyRange: $("historyRange"),
     sheet: $("sheet"), backdrop: $("backdrop"), settingsBtn: $("settingsBtn"),
     sheetTabs: $("sheetTabs"), sheetBody: $("sheetBody"), sheetFoot: $("sheetFoot"),
     updateDot: $("updateDot"), gearDot: $("gearDot"),
@@ -2248,6 +2438,84 @@
     el.changelogList.innerHTML = html;
   }
 
+  /* ---------------- 足迹视图 ---------------- */
+  function addTodayLive(t, now){
+    var k = dayKey(now);
+    if (state.history[k]) return t;
+    var day = startOfDay(now);
+    var m = shiftMoney(state.cfg, state.dayFlags, day, now);
+    if (m.kind === "none") return t;
+    var sec = (m.kind === "holiday" || m.kind === "weekend")
+      ? m.otSec : (regularSec(state.cfg, day, now) + m.otSec);
+    var amt = m.regular + m.ot;
+    if (sec > 0 || amt > 0){
+      t.amount += amt;
+      t.sec += sec;
+      t.otSec += m.otSec;
+      t.otAmount += m.ot;
+      if (sec > 0) t.days += 1;
+    }
+    return t;
+  }
+
+  function historyViewTotals(now){
+    return addTodayLive(historyTotals(state.history), now);
+  }
+
+  function historyMonthView(now, offset){
+    var d = new Date(now);
+    d.setDate(1);
+    d.setMonth(d.getMonth() + (offset || 0));
+    var ym = d.getFullYear() + "-" + pad2(d.getMonth() + 1);
+    var t = historyMonth(state.history, ym);
+    if (!offset) addTodayLive(t, now);
+    return t;
+  }
+
+  var hmSig = "";
+  function renderHistoryHeatmap(now){
+    var cells = heatmapCells(state.history, now, 12);
+    var full = dailyWorkSec(state.cfg) || 1;
+    var todayK = dayKey(now);
+    var todayLive = null;
+    if (!state.history[todayK]){
+      var day = startOfDay(now);
+      var m = shiftMoney(state.cfg, state.dayFlags, day, now);
+      if (m.kind !== "none"){
+        var sec = (m.kind === "holiday" || m.kind === "weekend")
+          ? m.otSec : (regularSec(state.cfg, day, now) + m.otSec);
+        if (sec > 0 || m.regular + m.ot > 0) todayLive = { sec: sec, amount: m.regular + m.ot };
+      }
+    }
+    var sig = state.historyRev + "|" + Object.keys(state.history).length + "|" + todayK + "|" +
+      (todayLive ? Math.floor(todayLive.sec / 60) : -1) + "|" + state.recordStart + "|" +
+      Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0);
+    if (sig === hmSig) return;
+    hmSig = sig;
+
+    var html = "";
+    var first = cells[0].key, last = cells[cells.length - 1].key;
+    for (var i = 0; i < cells.length; i++){
+      var c = cells[i];
+      var cSec = c.sec, cAmt = c.amount;
+      if (c.today && todayLive && !state.history[c.key]){ cSec = todayLive.sec; cAmt = todayLive.amount; }
+      var ratio = full > 0 ? cSec / full : 0;
+      var lvl = ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 0.95 ? 2 : ratio < 1.25 ? 3 : 4;
+      var cls = "hm-cell" + (lvl ? " l" + lvl : "") + (c.today ? " today" : "") +
+        (c.future ? " future" : "") + (state.recordStart && c.key < state.recordStart ? " before" : "");
+      var tip = c.key.slice(5).replace("-", "/") +
+        (cSec > 0 ? " · " + fmtHour(cSec / 3600) + " · ¥" + fmt2(cAmt) : " · 没有记录");
+      html += '<div class="' + cls + '" data-key="' + c.key + '" data-sec="' + Math.round(cSec) +
+        '" data-amount="' + (Math.round(cAmt * 100) / 100) + '" title="' + tip + '"></div>';
+    }
+    el.heatmap.innerHTML = html;
+    var f = new Date(first + "T00:00:00"), l = new Date(last + "T00:00:00");
+    if (el.historyRange){
+      el.historyRange.textContent = (f.getMonth() + 1) + "/" + f.getDate() +
+        " – " + (l.getMonth() + 1) + "/" + l.getDate();
+    }
+  }
+
   /* ==========================================================
      渲染
      ========================================================== */
@@ -2262,13 +2530,30 @@
     var workday = isWorkdayAt(cfg, totals.shiftDay);
     var holidayNow = !!flags.holiday && (workday || !!flags.worked);
     var holidayMult = Number(cfg.otHoliday) || 3;
+    var isFree = state.mode === "free";
+    var isHistory = state.mode === "history";
 
     document.body.dataset.mood = (status.key === "ot" || status.mult > 1) ? "ot" : (status.mult > 0 ? "on" : "off");
-    var hideCard = state.mode === "free";
+    var hideCard = isFree || isHistory;
     if (cache.hideCard !== hideCard){
       cache.hideCard = hideCard;
       el.otCard.style.display = hideCard ? "none" : "";
-      el.explainCard.style.display = hideCard ? "" : "none";
+    }
+    if (cache.showExplain !== isFree){
+      cache.showExplain = isFree;
+      el.explainCard.style.display = isFree ? "" : "none";
+    }
+    if (cache.showHistory !== isHistory){
+      cache.showHistory = isHistory;
+      el.historyCard.style.display = isHistory ? "" : "none";
+    }
+
+    var hist = null, monthHist = null, prevHist = null;
+    if (isHistory){
+      hist = historyViewTotals(now);
+      monthHist = historyMonthView(now, 0);
+      prevHist = historyMonthView(now, -1);
+      renderHistoryHeatmap(now);
     }
 
     var d = new Date(now);
@@ -2293,6 +2578,10 @@
     var endTs = shiftEndTs(cfg, totals.shiftDay);
     if (status.key !== "offday" && now >= shiftStartTs(cfg, totals.shiftDay) && now < endTs){
       shiftTxt += " · 还剩 " + clockText(endTs - now);
+    }
+    if (isHistory){
+      var hstart = state.recordStart ? new Date(state.recordStart + "T00:00:00") : new Date(now);
+      shiftTxt = "从 " + (hstart.getMonth() + 1) + "/" + hstart.getDate() + " 开始记录 · 最近 12 周";
     }
     setText(el.shiftLine, shiftTxt);
 
@@ -2324,6 +2613,9 @@
         unitTxt = "年";
       }
       dec = false;
+    } else if (isHistory){
+      value = hist.amount;
+      label = hist.days > 0 ? "累计入账" : "从今天开始记录";
     } else {
       value = totals.today;
       label = over ? "本班次已入账" : "今日已入账";
@@ -2364,6 +2656,13 @@
       setText(el.spd2, "¥" + fmt2(totals.dailyPay));
       setText(el.spd3l, "月薪");
       setText(el.spd3, "¥" + fmt2(cfg.salary));
+    } else if (isHistory){
+      setText(el.spd1l, "累计上班");
+      setText(el.spd1, hist.days + " 天");
+      setText(el.spd2l, "累计工时");
+      setText(el.spd2, fmtHour(hist.sec / 3600));
+      setText(el.spd3l, "累计加班");
+      setText(el.spd3, fmtHour(hist.otSec / 3600));
     } else {
       setText(el.spd1l, "每秒");
       setText(el.spd1, "¥" + fmtRate(rate));
@@ -2380,6 +2679,10 @@
       pct = fiT0 > 0 ? (Number(cfg.saved) || 0) / fiT0 : 0;
       barLabel = "自由进度";
       barValue = "已存 ¥" + fmtWan(cfg.saved) + " / ¥" + fmtWan(fiT0) + " · " + Math.round(Math.min(1, pct) * 100) + "%";
+    } else if (isHistory){
+      pct = cfg.salary > 0 ? monthHist.amount / cfg.salary : 0;
+      barLabel = "本月进度";
+      barValue = "¥" + fmt2(monthHist.amount) + " / ¥" + fmt2(cfg.salary) + " · " + Math.round(pct * 100) + "%";
     } else if (state.mode === "month" || state.mode === "rate"){
       pct = cfg.salary > 0 ? totals.month / cfg.salary : 0;
       barLabel = "本月进度";
@@ -2534,6 +2837,14 @@
         totals.monthOT > 0 ? "本月加班 ¥" + fmt0(totals.monthOT) : "这个月还没加班", "");
       setTile(4, "少花一半", !isFinite(baseM) || !isFinite(halfM) ? "—" : "提前 " + fmtMonths(baseM - halfM),
         "月花 ¥" + fmt0(cfg.monthExpense) + " → ¥" + fmt0(cfg.monthExpense / 2), "");
+    } else if (isHistory){
+      setTile(1, "本月入账", "¥" + fmt2(monthHist.amount),
+        "已记录 " + monthHist.days + " 天", "");
+      setTile(2, "上月入账", prevHist.amount > 0 ? "¥" + fmt2(prevHist.amount) : "—",
+        prevHist.days > 0 ? "记录 " + prevHist.days + " 天" : "上个月没有记录", "");
+      setTile(3, "平均每班", hist.days > 0 ? "¥" + fmt2(hist.amount / hist.days) : "—",
+        hist.days > 0 ? "按 " + hist.days + " 个班算" : "还没有记录", "");
+      setTile(4, "累计加班", "¥" + fmt2(hist.otAmount), fmtHour(hist.otSec / 3600), "");
     } else if (state.mode === "month"){
       var avgPay = totals.month / Math.max(1, totals.monthWorkDays);
       var otShare = totals.month > 0 ? Math.round(totals.monthOT / totals.month * 100) : 0;
@@ -2557,7 +2868,8 @@
 
     var shareAria = state.mode === "month" ? "复制本月战绩"
       : state.mode === "rate" ? "复制时间单价"
-      : state.mode === "free" ? "复制自由计划" : "复制本班战绩";
+      : state.mode === "free" ? "复制自由计划"
+      : isHistory ? "复制上班足迹" : "复制本班战绩";
     if (cache.shareAria !== shareAria){
       cache.shareAria = shareAria;
       el.shareBtn.setAttribute("aria-label", shareAria);
@@ -2591,6 +2903,14 @@
     } else if (state.mode === "rate"){
       setText(el.funLine, "平时 1 小时 ¥" + fmtRate(hourlyRate)
         + "，加班 1 小时 ¥" + fmtRate(hourlyRate * otMultNow));
+    } else if (isHistory){
+      if (hist.days > 0){
+        var hstart2 = state.recordStart ? new Date(state.recordStart + "T00:00:00") : new Date(now);
+        setText(el.funLine, "从 " + (hstart2.getMonth() + 1) + "/" + hstart2.getDate()
+          + " 开始，已记录 " + hist.days + " 个班 · 平均每班 ¥" + fmt2(hist.amount / hist.days));
+      } else {
+        setText(el.funLine, "今天开始记录，明天再打开就有昨天的了");
+      }
     } else if (workday && flags.holiday && !flags.off){
       setText(el.funLine, status.key === "early"
         ? "今天是节假日 · " + cfg.workStart + " 开始，整班按 ×" + oneDecimal(holidayMult) + " 计"
@@ -2660,6 +2980,8 @@
         toast("取消加班");
       }
     }
+    dropHistory(day);
+    ensureHistory(Date.now());
     save();
     render();
   }
@@ -2673,6 +2995,8 @@
       f.ot = false;
       f.holiday = false;
     }
+    dropHistory(day);
+    ensureHistory(Date.now());
     save();
     render();
     toast(f.off ? "今天不上班，本班不计薪" : "恢复上班");
@@ -2691,6 +3015,8 @@
     } else {
       toast("恢复普通工作日");
     }
+    dropHistory(day);
+    ensureHistory(Date.now());
     save();
     render();
   }
@@ -2707,14 +3033,27 @@
     var day = shiftDayFor(state.cfg, state.dayFlags, now);
     var f = ensureFlag(day);
     f.mult = mult;
+    dropHistory(day);
+    ensureHistory(Date.now());
     save();
     render();
     toast("本次按 ×" + mult + " 计");
   });
 
   el.amount.addEventListener("click", function(){
-    var order = ["today", "month", "rate", "free"];
+    var order = ["today", "month", "rate", "free", "history"];
     setMode(order[(order.indexOf(state.mode) + 1) % order.length]);
+  });
+
+  el.heatmap.addEventListener("click", function(ev){
+    var cell = ev.target.closest ? ev.target.closest(".hm-cell") : null;
+    if (!cell) return;
+    var sec = Number(cell.getAttribute("data-sec")) || 0;
+    var amt = Number(cell.getAttribute("data-amount")) || 0;
+    var key = cell.getAttribute("data-key") || "";
+    var day = key.slice(5).replace("-", "/");
+    if (!(sec > 0) && !(amt > 0)){ toast(day + " 没有记录"); return; }
+    toast(day + " · " + fmtHour(sec / 3600) + " · ¥" + fmt2(amt));
   });
 
   document.querySelectorAll(".tabs button").forEach(function(btn){
@@ -2754,6 +3093,20 @@
           "每月花 ¥" + fmt0(cfg.monthExpense) + " → 自由线 ¥" + fmtWan(fiS),
           "每月能存 ¥" + fmt0(pmtS) + "（储蓄率 " + rateS + "%）",
           "按年化 " + (Number(cfg.returnRate) || 0) + "% 算，约 " + fmtMonths(monthsToFI(cfg)) + "后可以不上班"
+        ].join("\n")
+      };
+    }
+
+    if (state.mode === "history"){
+      var ht = historyViewTotals(now);
+      var hs = state.recordStart ? new Date(state.recordStart + "T00:00:00") : new Date(now);
+      return {
+        title: "上班足迹",
+        text: [
+          "📜 我的上班足迹",
+          "从 " + (hs.getMonth() + 1) + "/" + hs.getDate() + " 开始，记录了 " + ht.days + " 个班",
+          "累计 " + fmtHour(ht.sec / 3600) + " · ¥" + fmt2(ht.amount),
+          "加班 " + fmtHour(ht.otSec / 3600) + " · ¥" + fmt2(ht.otAmount)
         ].join("\n")
       };
     }
@@ -3027,6 +3380,7 @@
     cfg.otHoliday = Math.max(1, cfg.otHoliday);
     cfg.payday = Math.max(1, Math.min(31, cfg.payday));
 
+    ensureHistory(Date.now());
     state.cfg = cfg;
     state.firstRun = false;
     cache = {};
@@ -3051,7 +3405,13 @@
   var dataMode = "export";
 
   function encodeBackup(){
-    return JSON.stringify({ v: CONFIG_VERSION, cfg: state.cfg, dayFlags: state.dayFlags });
+    return JSON.stringify({
+      v: CONFIG_VERSION,
+      cfg: state.cfg,
+      dayFlags: state.dayFlags,
+      recordStart: state.recordStart,
+      history: state.history
+    });
   }
 
   function openData(mode){
@@ -3091,16 +3451,21 @@
   function doImport(){
     var parsed = decodeBackup(dataText.value);
     if (!parsed.ok){ toast(parsed.error); return; }
-    if (!confirm("导入会覆盖当前的配置和加班 / 请假标记，继续？")) return;
+    if (!confirm("导入会覆盖当前的配置、标记和足迹，继续？")) return;
     state.cfg = parsed.cfg;
     state.dayFlags = parsed.dayFlags;
+    state.history = parsed.history || {};
+    state.recordStart = parsed.recordStart || "";
+    state.historyRev += 1;
     state.firstRun = false;
+    ensureHistory(Date.now());
     cache = {};
     save();
     closeData();
     closeSheet();
     render();
-    toast("已导入 · 月薪 ¥" + fmt0(state.cfg.salary) + " · " + parsed.count + " 天标记" + versionNote(parsed.version));
+    toast("已导入 · 月薪 ¥" + fmt0(state.cfg.salary) + " · " + parsed.count + " 天标记"
+      + (parsed.historyCount ? " · " + parsed.historyCount + " 天足迹" : "") + versionNote(parsed.version));
   }
 
   function pasteIntoData(){
@@ -3223,6 +3588,8 @@
     if (!res.ok){ toast(res.error); return; }
     var had = !!recordStatus(state.cfg, state.dayFlags, k);
     state.dayFlags[k] = res.flag;
+    dropHistory(ts);
+    ensureHistory(Date.now());
     save();
     cache = {};
     render();
@@ -3242,6 +3609,9 @@
     var k = btn.getAttribute("data-key");
     if (!k || !state.dayFlags[k]) return;
     delete state.dayFlags[k];
+    var ts = new Date(k + "T00:00:00").getTime();
+    dropHistory(ts);
+    ensureHistory(Date.now());
     save();
     cache = {};
     render();
@@ -3256,7 +3626,10 @@
   });
 
   document.addEventListener("visibilitychange", function(){
-    if (!document.hidden) render();
+    if (!document.hidden){
+      ensureHistory(Date.now());
+      render();
+    }
   });
 
   /* ---------- 启动 ---------- */
@@ -3300,6 +3673,7 @@
 
   initSelects();
   load();
+  ensureHistory(Date.now());
   setTimeout(updateAppOverflow, 80);
   setTimeout(updateAppOverflow, 800);
   if (state.firstRun) markUpdateSeen(true);
@@ -3309,6 +3683,7 @@
     b.setAttribute("aria-selected", b.getAttribute("data-mode") === state.mode ? "true" : "false");
   });
   render();
+  setInterval(function(){ if (!document.hidden) ensureHistory(Date.now()); }, 60000);
   if (state.firstRun) setTimeout(openSheet, 420);
 
   var frameGuard = 0;

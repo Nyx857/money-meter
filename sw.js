@@ -8,7 +8,7 @@
  * 导航策略：网络优先（900ms 超时），失败回退干净缓存，再失败给友好离线页。
  * 这样新版能立刻生效，慢网/断网也不会白屏。
  */
-const VERSION = "1.3.8";
+const VERSION = "1.4.0";
 const CACHE = "money-meter-" + VERSION;
 const CORE = [
   "./index.html",

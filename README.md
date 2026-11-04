@@ -25,6 +25,7 @@ Most "salary tickers" assume your rate never changes. In reality overtime pays 1
 - **Built-in changelog** — version, date and notes for every release; a gold dot on the gear when something new ships
 - **One-screen dashboard** — the main view scales with viewport height, so it fits a phone screen without scrolling
 - **Offline-first PWA** — a service worker caches the app; after the first visit it opens instantly, even without a network
+- **Work footprint** — every finished shift is snapshotted automatically into a 12-week heatmap with cumulative days, hours, overtime and earnings
 - **Month view** — money, days worked, overtime days, average per shift
 - **Freedom view** — 4% rule target, years until you can stop, and the two levers: save the overtime, spend less
 
@@ -49,7 +50,7 @@ On a phone: use the same Wi-Fi and run `./start.command` (macOS). It prints a QR
 - Overtime only counts time **outside** the regular shift, minus breaks
 - Freedom line = monthly expenses × 12 × 25 (the 4% rule); compounding at your assumed real return
 
-Tests: `node tests/core.test.mjs` (224 assertions covering overnight shifts, multi-break deduction, holidays, cycle schedules, import validation/migration, the 4% rule and edge cases).
+Tests: `node tests/core.test.mjs` (255 assertions covering overnight shifts, multi-break deduction, holidays, cycle schedules, import validation/migration, the 4% rule and edge cases).
 
 ## License
 

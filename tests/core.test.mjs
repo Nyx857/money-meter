@@ -12,7 +12,8 @@ const A = new Function(
   'isOvernight,startOfDay,dayKey,fmt2,fmtRate,splitAmount,hmToMin,minToHm,fmtDur,otNetMin,monthWorkdayCount,fiTarget,monthsToFI,fmtWan,fmtMonths,' +
   'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS,' +
   'recordStatus,recordFlagFor,recentRecordKeys,' +
-  'isCycleWorkday,cycleParts,cycleAvgDays,isValidDateKey,APP_VERSION,CHANGELOG};'
+  'isCycleWorkday,cycleParts,cycleAvgDays,isValidDateKey,APP_VERSION,CHANGELOG,' +
+  'snapshotDay,normalizeHistory,historyTotals,historyMonth,heatmapCells};'
 )();
 
 let pass = 0, fail = 0;
@@ -493,6 +494,63 @@ ok('每条都有版本号 / 日期 / 内容', A.CHANGELOG.every(function(c){
   return /^\d+\.\d+\.\d+$/.test(c.version) && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
     && Array.isArray(c.items) && c.items.length > 0;
 }));
+
+console.log('\n[24] 足迹快照');
+const nov4 = A.startOfDay(at(2026, 11, 4, 0, 0));
+const snap = A.snapshotDay(dflt, {}, nov4, at(2026, 11, 4, 20, 0));
+ok('完整工作日生成快照', !!snap);
+eq('金额 = 日薪', snap.amount, d2, 0.01);
+eq('工时 = 8 小时', snap.sec, 28800);
+eq('无加班', snap.otSec, 0);
+ok('没下班不生成', A.snapshotDay(dflt, {}, nov4, at(2026, 11, 4, 10, 0)) === null);
+ok('休息日不生成', A.snapshotDay(dflt, {}, A.startOfDay(at(2026, 11, 7, 0, 0)), at(2026, 11, 7, 20, 0)) === null);
+ok('请假不生成', A.snapshotDay(dflt, { '2026-11-04': { off: true } }, nov4, at(2026, 11, 4, 20, 0)) === null);
+const sot = A.snapshotDay(dflt, { '2026-11-04': { ot: true, mult: 1.5 } }, nov4, at(2026, 11, 4, 22, 0));
+eq('加班快照含加班工时', sot.sec, 8 * 3600 + 210 * 60);
+eq('加班费单独记录', sot.otAmount, 210 * 60 * b2 * 1.5, 0.01);
+eq('加班快照金额', sot.amount, d2 + 210 * 60 * b2 * 1.5, 0.01);
+const shol = A.snapshotDay(dflt, { '2026-11-04': { holiday: true } }, nov4, at(2026, 11, 4, 20, 0));
+eq('节假日金额 3×', shol.amount, d2 * 3, 0.01);
+eq('节假日工时只算一次', shol.sec, 28800);
+
+console.log('\n[25] 足迹汇总 / 热力图 / 备份');
+const H = {
+  '2026-11-03': { amount: 100, sec: 3600, otSec: 0, otAmount: 0 },
+  '2026-11-04': { amount: 200, sec: 7200, otSec: 600, otAmount: 50 }
+};
+const ht2 = A.historyTotals(H);
+eq('累计金额', ht2.amount, 300);
+eq('累计工时', ht2.sec, 10800);
+eq('累计天数', ht2.days, 2);
+eq('累计加班费', ht2.otAmount, 50);
+eq('本月聚合', A.historyMonth(H, '2026-11').amount, 300);
+eq('下月为空', A.historyMonth(H, '2026-12').amount, 0);
+const cells = A.heatmapCells(H, at(2026, 11, 5, 10, 0), 12);
+eq('12 周 = 84 格', cells.length, 84);
+ok('包含今天', cells.some((c) => c.today === true));
+ok('最后一周有未来格', cells[cells.length - 1].future === true);
+ok('11/3 的金额在格子里', cells.some((c) => c.key === '2026-11-03' && c.amount === 100));
+ok('周一是第一格', new Date(cells[0].ts).getDay() === 1);
+
+const nh = A.normalizeHistory({
+  '2026-11-04': { amount: '100.126', sec: '3600', otSec: '60', otAmount: '12.345' },
+  'bad': { amount: 1 },
+  '2026-11-05': { amount: 0, sec: 0 },
+  '2026-02-31': { amount: 5, sec: 60 }
+});
+eq('合法记录保留', Object.keys(nh).length, 1);
+eq('金额保留两位', nh['2026-11-04'].amount, 100.13);
+eq('工时取整', nh['2026-11-04'].sec, 3600);
+ok('0 记录丢弃', !nh['2026-11-05']);
+ok('非法日期丢弃', !nh['2026-02-31']);
+
+const b5 = A.decodeBackup(JSON.stringify({
+  v: 5, cfg: { salary: 5000 }, recordStart: '2026-11-01',
+  dayFlags: {}, history: { '2026-11-04': { amount: 100, sec: 3600, otSec: 0, otAmount: 0 } }
+}));
+ok('v5 备份带足迹', b5.ok && b5.version === 5 && b5.historyCount === 1 && b5.recordStart === '2026-11-01');
+eq('足迹金额恢复', b5.history['2026-11-04'].amount, 100);
+ok('老备份没有足迹也兼容', A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 } })).historyCount === 0);
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);
