@@ -960,10 +960,11 @@
       var m = shiftMoney(cfg, dayFlags, dayTs, now);
       var df = dayFlagsOf(dayFlags, dayTs);
       var isWD = isWorkdayAt(cfg, dayTs);
+      var started = now >= shiftStartTs(cfg, dayTs);
       if (isWD){
         if (df.off) res.monthOffDays += 1;
-        else res.monthWorkDays += 1;
-      } else if (df.worked){
+        else if (started) res.monthWorkDays += 1;
+      } else if (df.worked && started){
         res.monthWorkDays += 1;
       }
       res.monthRegular += m.regular;
@@ -1700,15 +1701,13 @@
           + "缩到 " + fmtMonths(halfM2));
       }
     } else if (state.mode === "month"){
-      if (totals.month <= 0){
+      if (totals.monthOT > 0 && dayWage > 0){
+        setText(el.funLine, "加班多挣 ¥" + fmt2(totals.monthOT) + "，等于 "
+          + (totals.monthOT / dayWage).toFixed(2) + " 天工资");
+      } else if (totals.month <= 0){
         setText(el.funLine, "这个月还没开始进账");
       } else {
-        var eqDays = dayWage > 0 ? totals.month / dayWage : 0;
-        var line = "上班 " + totals.monthWorkDays + " 天，挣了 " + eqDays.toFixed(1) + " 天的钱";
-        if (totals.monthOT > 0 && dayWage > 0){
-          line += "（加班多挣 " + (totals.monthOT / dayWage).toFixed(1) + " 天）";
-        }
-        setText(el.funLine, line);
+        setText(el.funLine, "本月还没有加班费");
       }
     } else if (state.mode === "rate"){
       setText(el.funLine, "平时 1 小时 ¥" + fmtRate(hourlyRate)
@@ -1871,9 +1870,6 @@
       var pct = cfg.salary > 0 ? Math.round(t.month / cfg.salary * 100) : 0;
       var out = ["📅 " + (d.getMonth() + 1) + " 月战绩 · 截至 " + d.getDate() + " 日"];
       out.push("已入账 ¥" + fmt2(t.month) + "（月薪的 " + pct + "%）");
-      if (t.dailyPay > 0 && t.monthWorkDays > 0){
-        out.push("上班 " + t.monthWorkDays + " 天，挣了 " + (t.month / t.dailyPay).toFixed(1) + " 天的钱");
-      }
       out.push("正常 ¥" + fmt0(t.monthRegular) + " + 加班 ¥" + fmt0(t.monthOT));
       if (t.monthOTSec > 0) out.push("加班 " + fmtHour(t.monthOTSec / 3600) + " · " + t.otCount + " 次");
       var pd = nextPayday(cfg, now);

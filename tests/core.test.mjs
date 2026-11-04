@@ -213,6 +213,8 @@ eq('请假 1 天', mt.monthOffDays, 1);
 eq('加班 2 天', mt.monthOTDays, 2);
 eq('加班还没开始的那天不算', A.computeTotals(dflt, { '2026-11-06': { ot: true, mult: 1.5 } }, at(2026, 11, 6, 10, 0)).monthOTDays, 0);
 eq('周末上班也算上班天数', A.computeTotals(dflt, { '2026-11-07': { worked: true, mult: 2 } }, at(2026, 11, 7, 19, 0)).monthWorkDays, 6);
+eq('还没到上班时间，今天不算上班天数', A.computeTotals(dflt, {}, at(2026, 11, 4, 8, 25)).monthWorkDays, 2);
+eq('上班时间一到就算', A.computeTotals(dflt, {}, at(2026, 11, 4, 9, 1)).monthWorkDays, 3);
 
 console.log('\n[17] 自由线：4% 法则 + 复利');
 const fiCfg = { salary: 5000, monthExpense: 2500, saved: 0, returnRate: 5 };
