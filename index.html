@@ -318,6 +318,39 @@
     flex:none;padding:12px 0 calc(var(--safe-b) + 12px);
     border-top:1px solid rgba(255,255,255,.06);background:#101317;
   }
+  .sheet-foot[hidden]{display:none}
+  .sheet-tabs{
+    display:flex;gap:4px;flex:none;margin:12px 0 10px;padding:3px;
+    border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--line);
+  }
+  .sheet-tabs button{
+    position:relative;flex:1;height:34px;padding:0;border:1px solid transparent;
+    border-radius:9px;background:transparent;color:var(--dim);
+    font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;
+    white-space:nowrap;transition:.16s;
+  }
+  .sheet-tabs button.on{
+    background:rgba(247,201,72,.15);border-color:rgba(247,201,72,.32);color:#ffe2a0;
+  }
+  .pane[hidden]{display:none}
+  #sheet.no-foot .sheet-body{padding-bottom:calc(var(--safe-b) + 12px)}
+  .tab-dot{
+    display:none;position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 0 1.5px #101317;
+  }
+  .tab-dot.show{display:block}
+  .gear-dot{
+    display:none;position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 0 2px var(--bg);
+  }
+  .icon-btn{position:relative}
+  .gear-dot.show{display:block}
+  .clear-btn{
+    height:40px;padding:0 14px;border-radius:11px;cursor:pointer;
+    border:1px solid rgba(255,107,107,.25);background:rgba(255,107,107,.05);
+    color:#ff9a9a;font-family:inherit;font-size:12px;font-weight:600;
+  }
+  .clear-btn:active{background:rgba(255,107,107,.11)}
 
   /* 首次引导 */
   .intro{
@@ -337,7 +370,6 @@
 
   /* 实时折算 */
   .preview-wrap{
-    position:sticky;top:0;z-index:3;
     margin-top:0;
     background:#101317;
     padding:2px 0 9px;margin:0 0 2px;
@@ -672,6 +704,7 @@
     <div class="clock"><b id="clock">--:--:--</b><span id="dateText"></span></div>
     <button class="icon-btn" id="settingsBtn" aria-label="设置">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <i class="gear-dot" id="gearDot"></i>
     </button>
   </header>
 
@@ -752,215 +785,236 @@
   <div class="grab"></div>
   <div class="sheet-head">
     <div>
-      <h2>你的班次怎么算</h2>
-      <p class="sub">填一次就行，跨零点的夜班也认。</p>
+      <h2>设置</h2>
+      <p class="sub">按分类改，保存一次全部生效。</p>
     </div>
     <button class="sheet-close" id="closeSheet" aria-label="关闭">
       <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
-    <div class="sheet-body">
-    <div class="intro" id="introCard">
-      <div class="intro-h">第一次用？三步就够</div>
-      <div class="intro-steps">
-        <span><i>1</i>月薪</span>
-        <span><i>2</i>上班时间</span>
-        <span><i>3</i>加班时段</span>
-      </div>
-      <div class="intro-note">已经按 9:00–17:00、加班 17:00–21:00 填好了，对一下数字就行。改动会实时折到下面那四格里。</div>
-    </div>
 
-    <div class="preview-wrap">
-      <div class="preview" id="previewCard">
-        <div class="pv"><span>每班</span><b id="pvShift">—</b><em id="pvShiftSub">—</em></div>
-        <div class="pv"><span>每秒</span><b id="pvSec">—</b><em id="pvSecSub">—</em></div>
-        <div class="pv"><span>时薪</span><b id="pvHour">—</b><em id="pvHourSub">—</em></div>
-        <div class="pv"><span>加班一次</span><b id="pvOT">—</b><em id="pvOTSub">—</em></div>
-      </div>
-    </div>
+  <div class="sheet-tabs" id="sheetTabs" role="tablist" aria-label="设置分类">
+    <button type="button" data-pane="shift" role="tab" aria-selected="true">班次</button>
+    <button type="button" data-pane="ot" role="tab" aria-selected="false">加班</button>
+    <button type="button" data-pane="free" role="tab" aria-selected="false">自由</button>
+    <button type="button" data-pane="data" role="tab" aria-selected="false">数据</button>
+    <button type="button" data-pane="update" role="tab" aria-selected="false">更新<i class="tab-dot" id="updateDot"></i></button>
+  </div>
 
-    <div class="section">钱</div>
-
-    <div class="field">
-      <label for="inSalary">月薪（税前或到手都行）</label>
-      <input type="number" id="inSalary" inputmode="decimal" min="0" step="100" placeholder="5000">
-      <div class="hint">填你实际拿到手的那个数，看着更爽。</div>
-    </div>
-
-    <div class="field">
-      <label for="inWorkDays">月计薪天数</label>
-      <input type="number" id="inWorkDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
-      <div class="hint" id="daysHint">法定平均值 21.75，按实际工作日可以填 22。</div>
-      <div class="hint" id="cycleDaysHint" hidden>上 <b id="cycleHintWork">4</b> 休 <b id="cycleHintRest">1</b> · 平均每月 <b id="cycleHintAvg">24.33</b> 个班 <button type="button" class="link-btn" id="useCycleDays">按这个填</button></div>
-    </div>
-
-    <div class="section">上班时间</div>
-
-    <div class="field">
-      <label>几点到几点（24 小时）</label>
-      <div class="row">
-        <div class="time-pair">
-          <select id="inStartH" aria-label="上班小时"></select>
-          <span class="colon">:</span>
-          <select id="inStartM" aria-label="上班分钟"></select>
+  <div class="sheet-body" id="sheetBody">
+    <div class="pane" data-pane="shift">
+      <div class="intro" id="introCard">
+        <div class="intro-h">第一次用？三步就够</div>
+        <div class="intro-steps">
+          <span><i>1</i>月薪</span>
+          <span><i>2</i>上班时间</span>
+          <span><i>3</i>加班时段</span>
         </div>
-        <div class="time-pair">
-          <select id="inEndH" aria-label="下班小时"></select>
-          <span class="colon">:</span>
-          <select id="inEndM" aria-label="下班分钟"></select>
+        <div class="intro-note">已经按 9:00–17:00、加班 17:00–21:00 填好了，对一下数字就行。改动会实时折到下面那四格里。</div>
+      </div>
+
+      <div class="preview-wrap">
+        <div class="preview" id="previewCard">
+          <div class="pv"><span>每班</span><b id="pvShift">—</b><em id="pvShiftSub">—</em></div>
+          <div class="pv"><span>每秒</span><b id="pvSec">—</b><em id="pvSecSub">—</em></div>
+          <div class="pv"><span>时薪</span><b id="pvHour">—</b><em id="pvHourSub">—</em></div>
+          <div class="pv"><span>加班一次</span><b id="pvOT">—</b><em id="pvOTSub">—</em></div>
         </div>
       </div>
-      <div class="dur-hint" id="durHint">—</div>
-      <div class="hint">下班时间早于上班时间就是跨零点的夜班，会自动识别。</div>
-    </div>
 
-    <div class="field">
-      <label>休息时段（不计薪）</label>
-      <div class="break-list" id="breakList"></div>
-      <div class="break-empty" id="breakEmpty">没有休息时段，整班都计薪</div>
-      <button type="button" class="add-break" id="addBreak">＋ 加一段休息</button>
-      <div class="hint">上班和加班里都会扣。默认 17:30–18:00 就是加班里的休息。</div>
-    </div>
+      <div class="section">钱</div>
 
-    <div class="field">
-      <label>上班怎么排</label>
-      <div class="seg" id="scheduleSeg">
-        <button type="button" data-sched="week">按星期</button>
-        <button type="button" data-sched="cycle">上几休几</button>
+      <div class="field">
+        <label for="inSalary">月薪（税前或到手都行）</label>
+        <input type="number" id="inSalary" inputmode="decimal" min="0" step="100" placeholder="5000">
+        <div class="hint">填你实际拿到手的那个数，看着更爽。</div>
       </div>
-      <div class="week" id="inWeek">
-        <button type="button" data-d="1">一</button>
-        <button type="button" data-d="2">二</button>
-        <button type="button" data-d="3">三</button>
-        <button type="button" data-d="4">四</button>
-        <button type="button" data-d="5">五</button>
-        <button type="button" data-d="6">六</button>
-        <button type="button" data-d="0">日</button>
+
+      <div class="field">
+        <label for="inWorkDays">月计薪天数</label>
+        <input type="number" id="inWorkDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
+        <div class="hint" id="daysHint">法定平均值 21.75，按实际工作日可以填 22。</div>
+        <div class="hint" id="cycleDaysHint" hidden>上 <b id="cycleHintWork">4</b> 休 <b id="cycleHintRest">1</b> · 平均每月 <b id="cycleHintAvg">24.33</b> 个班 <button type="button" class="link-btn" id="useCycleDays">按这个填</button></div>
       </div>
-      <div class="cycle-box" id="cycleBox" hidden>
+
+      <div class="section">上班时间</div>
+
+      <div class="field">
+        <label>几点到几点（24 小时）</label>
         <div class="row">
-          <div class="cycle-cell">
-            <span>上</span>
-            <input type="number" id="inCycleWork" min="1" max="31" step="1" inputmode="numeric" aria-label="连续上几天">
-            <span>天</span>
+          <div class="time-pair">
+            <select id="inStartH" aria-label="上班小时"></select>
+            <span class="colon">:</span>
+            <select id="inStartM" aria-label="上班分钟"></select>
           </div>
-          <div class="cycle-cell">
-            <span>休</span>
-            <input type="number" id="inCycleRest" min="0" max="31" step="1" inputmode="numeric" aria-label="连续休几天">
-            <span>天</span>
+          <div class="time-pair">
+            <select id="inEndH" aria-label="下班小时"></select>
+            <span class="colon">:</span>
+            <select id="inEndM" aria-label="下班分钟"></select>
           </div>
         </div>
-        <div class="cycle-date">
-          <label for="inCycleStart">从哪天开始（这天算第 1 个上班日）</label>
-          <input type="date" id="inCycleStart">
+        <div class="dur-hint" id="durHint">—</div>
+        <div class="hint">下班时间早于上班时间就是跨零点的夜班，会自动识别。</div>
+      </div>
+
+      <div class="field">
+        <label>休息时段（不计薪）</label>
+        <div class="break-list" id="breakList"></div>
+        <div class="break-empty" id="breakEmpty">没有休息时段，整班都计薪</div>
+        <button type="button" class="add-break" id="addBreak">＋ 加一段休息</button>
+        <div class="hint">上班和加班里都会扣。默认 17:30–18:00 就是加班里的休息。</div>
+      </div>
+
+      <div class="field">
+        <label>上班怎么排</label>
+        <div class="seg" id="scheduleSeg">
+          <button type="button" data-sched="week">按星期</button>
+          <button type="button" data-sched="cycle">上几休几</button>
         </div>
-        <div class="cycle-preview" id="cyclePreview"></div>
-      </div>
-      <div class="hint">上四休一、做一休一这类轮班选「上几休几」，每周固定的就选「按星期」。</div>
-    </div>
-
-    <div class="section">加班</div>
-
-    <div class="field">
-      <label>固定加班时段</label>
-      <div class="row">
-        <div class="time-pair">
-          <select id="inOtStartH" aria-label="加班开始小时"></select>
-          <span class="colon">:</span>
-          <select id="inOtStartM" aria-label="加班开始分钟"></select>
+        <div class="week" id="inWeek">
+          <button type="button" data-d="1">一</button>
+          <button type="button" data-d="2">二</button>
+          <button type="button" data-d="3">三</button>
+          <button type="button" data-d="4">四</button>
+          <button type="button" data-d="5">五</button>
+          <button type="button" data-d="6">六</button>
+          <button type="button" data-d="0">日</button>
         </div>
-        <div class="time-pair">
-          <select id="inOtEndH" aria-label="加班结束小时"></select>
-          <span class="colon">:</span>
-          <select id="inOtEndM" aria-label="加班结束分钟"></select>
+        <div class="cycle-box" id="cycleBox" hidden>
+          <div class="row">
+            <div class="cycle-cell">
+              <span>上</span>
+              <input type="number" id="inCycleWork" min="1" max="31" step="1" inputmode="numeric" aria-label="连续上几天">
+              <span>天</span>
+            </div>
+            <div class="cycle-cell">
+              <span>休</span>
+              <input type="number" id="inCycleRest" min="0" max="31" step="1" inputmode="numeric" aria-label="连续休几天">
+              <span>天</span>
+            </div>
+          </div>
+          <div class="cycle-date">
+            <label for="inCycleStart">从哪天开始（这天算第 1 个上班日）</label>
+            <input type="date" id="inCycleStart">
+          </div>
+          <div class="cycle-preview" id="cyclePreview"></div>
         </div>
+        <div class="hint">上四休一、做一休一这类轮班选「上几休几」，每周固定的就选「按星期」。</div>
       </div>
-      <div class="hint" id="otHintIn">主界面点一下「今天加班」，这个时段就自动按倍率计费，不用掐表。</div>
-    </div>
 
-    <div class="field">
-      <label>加班倍率</label>
-      <div class="row">
-        <input type="number" id="inOTW" inputmode="decimal" min="1" max="5" step="0.5" placeholder="1.5">
-        <input type="number" id="inOTWe" inputmode="decimal" min="1" max="5" step="0.5" placeholder="2">
-        <input type="number" id="inOTH" inputmode="decimal" min="1" max="5" step="0.5" placeholder="3">
+      <div class="section">发薪</div>
+
+      <div class="field">
+        <label for="inPayday">每月几号发薪</label>
+        <input type="number" id="inPayday" inputmode="numeric" min="1" max="31" step="1" placeholder="15">
+        <div class="hint">小月自动取月末（比如 31 号 → 2 月 28 日）。</div>
       </div>
-      <div class="hint">依次是：工作日加班 / 周末整天 / 法定节假日（默认 1.5 / 2 / 3）。</div>
     </div>
 
-    <div class="section">发薪</div>
+    <div class="pane" data-pane="ot" hidden>
+      <div class="section">加班</div>
 
-    <div class="field">
-      <label for="inPayday">每月几号发薪</label>
-      <input type="number" id="inPayday" inputmode="numeric" min="1" max="31" step="1" placeholder="15">
-      <div class="hint">小月自动取月末（比如 31 号 → 2 月 28 日）。</div>
-    </div>
-
-    <div class="section">自由</div>
-
-    <div class="field">
-      <label for="inExpense">每月大概花多少</label>
-      <input type="number" id="inExpense" inputmode="decimal" min="0" step="100" placeholder="2500">
-      <div class="hint">房租、吃饭、交通都算。这个数 × 12 × 25 = 你的自由线。</div>
-    </div>
-
-    <div class="field">
-      <label for="inSaved">现在存下了多少</label>
-      <input type="number" id="inSaved" inputmode="decimal" min="0" step="1000" placeholder="0">
-      <div class="hint">存款、理财、公积金都算。填 0 也能算，只是进度条是空的。</div>
-    </div>
-
-    <div class="field">
-      <label for="inReturn">预期年化收益（%）</label>
-      <input type="number" id="inReturn" inputmode="decimal" min="0" max="20" step="0.5" placeholder="5">
-      <div class="hint">扣掉通胀后的实际收益。保守填 4–5，别按牛市算。</div>
-    </div>
-
-    <div class="section">记录</div>
-
-    <div class="field">
-      <label>补录漏掉的标记</label>
-      <div class="data-row">
-        <button type="button" class="data-btn" id="openLogBtn">
-          <svg viewBox="0 0 24 24"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
-          打开记录
-        </button>
+      <div class="field">
+        <label>固定加班时段</label>
+        <div class="row">
+          <div class="time-pair">
+            <select id="inOtStartH" aria-label="加班开始小时"></select>
+            <span class="colon">:</span>
+            <select id="inOtStartM" aria-label="加班开始分钟"></select>
+          </div>
+          <div class="time-pair">
+            <select id="inOtEndH" aria-label="加班结束小时"></select>
+            <span class="colon">:</span>
+            <select id="inOtEndM" aria-label="加班结束分钟"></select>
+          </div>
+        </div>
+        <div class="hint" id="otHintIn">主界面点一下「今天加班」，这个时段就自动按倍率计费，不用掐表。</div>
       </div>
-      <div class="hint">忘了点下班、三天前忘了标加班，可以在这里补，也可以删掉记错的那天。</div>
-    </div>
 
-    <div class="section">备份</div>
-
-    <div class="field">
-      <label>配置只存在这台设备上</label>
-      <div class="data-row">
-        <button type="button" class="data-btn" id="exportBtn">
-          <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          导出配置
-        </button>
-        <button type="button" class="data-btn" id="importBtn">
-          <svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          导入配置
-        </button>
+      <div class="field">
+        <label>加班倍率</label>
+        <div class="row">
+          <input type="number" id="inOTW" inputmode="decimal" min="1" max="5" step="0.5" placeholder="1.5">
+          <input type="number" id="inOTWe" inputmode="decimal" min="1" max="5" step="0.5" placeholder="2">
+          <input type="number" id="inOTH" inputmode="decimal" min="1" max="5" step="0.5" placeholder="3">
+        </div>
+        <div class="hint">依次是：工作日加班 / 休息日整天 / 法定节假日（默认 1.5 / 2 / 3）。</div>
       </div>
-      <div class="hint">换手机、删主屏图标、清缓存之前先导一份，粘到备忘录里存着。</div>
     </div>
 
-    <div class="section">关于</div>
+    <div class="pane" data-pane="free" hidden>
+      <div class="section">自由</div>
 
-    <div class="field">
+      <div class="field">
+        <label for="inExpense">每月大概花多少</label>
+        <input type="number" id="inExpense" inputmode="decimal" min="0" step="100" placeholder="2500">
+        <div class="hint">房租、吃饭、交通都算。这个数 × 12 × 25 = 你的自由线。</div>
+      </div>
+
+      <div class="field">
+        <label for="inSaved">现在存下了多少</label>
+        <input type="number" id="inSaved" inputmode="decimal" min="0" step="1000" placeholder="0">
+        <div class="hint">存款、理财、公积金都算。填 0 也能算，只是进度条是空的。</div>
+      </div>
+
+      <div class="field">
+        <label for="inReturn">预期年化收益（%）</label>
+        <input type="number" id="inReturn" inputmode="decimal" min="0" max="20" step="0.5" placeholder="5">
+        <div class="hint">扣掉通胀后的实际收益。保守填 4–5，别按牛市算。</div>
+      </div>
+    </div>
+
+    <div class="pane" data-pane="data" hidden>
+      <div class="section">记录</div>
+
+      <div class="field">
+        <label>补录漏掉的标记</label>
+        <div class="data-row">
+          <button type="button" class="data-btn" id="openLogBtn">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v16H4z"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+            打开记录
+          </button>
+        </div>
+        <div class="hint">忘了点下班、三天前忘了标加班，可以在这里补，也可以删掉记错的那天。</div>
+      </div>
+
+      <div class="section">备份</div>
+
+      <div class="field">
+        <label>配置只存在这台设备上</label>
+        <div class="data-row">
+          <button type="button" class="data-btn" id="exportBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            导出配置
+          </button>
+          <button type="button" class="data-btn" id="importBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            导入配置
+          </button>
+        </div>
+        <div class="hint">换手机、删主屏图标、清缓存之前先导一份，粘到备忘录里存着。</div>
+      </div>
+
+      <div class="section">危险操作</div>
+
+      <div class="field">
+        <button type="button" class="clear-btn" id="clearLog">清空加班 / 请假标记</button>
+        <div class="hint">只删日期标记，配置和月薪不动。</div>
+      </div>
+    </div>
+
+    <div class="pane" data-pane="update" hidden>
       <div class="about-head">
         <b>每秒进账</b>
         <span id="appVersion">—</span>
       </div>
+      <div class="hint" style="margin-bottom:14px">每次发版都记在这里，最新的在最上面。</div>
       <div class="changelog" id="changelogList"></div>
     </div>
   </div>
-<div class="sheet-foot">
+
+  <div class="sheet-foot" id="sheetFoot">
     <button class="save" id="saveBtn">保存</button>
-    <div class="danger-row">
-      <button class="danger" id="clearLog">清空加班 / 请假标记</button>
-    </div>
   </div>
 </div>
 
@@ -1090,8 +1144,13 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.3.1";
+  var APP_VERSION = "1.3.2";
   var CHANGELOG = [
+    { version: "1.3.2", date: "2026-11-05", items: [
+      "设置面板分成「班次 / 加班 / 自由 / 数据 / 更新」五类，不用再滑一长条",
+      "更新日志单独一页；有新版本时点设置会直接打开，齿轮上还会亮个小圆点",
+      "「清空标记」移到数据页，保存按钮只在需要保存的页出现"
+    ] },
     { version: "1.3.1", date: "2026-11-05", items: [
       "手机端主界面按屏幕高度自动收紧，尽量一屏放下，不用上下滑",
       "短屏隐藏次要说明（页脚、四格的补充行、自由视图的第二段），优先保住金额和按钮",
@@ -1863,6 +1922,8 @@
     }),
     funLine: $("funLine"), explainCard: $("explainCard"), toast: $("toast"),
     sheet: $("sheet"), backdrop: $("backdrop"), settingsBtn: $("settingsBtn"),
+    sheetTabs: $("sheetTabs"), sheetBody: $("sheetBody"), sheetFoot: $("sheetFoot"),
+    updateDot: $("updateDot"), gearDot: $("gearDot"),
     shareBtn: $("shareBtn"), shareLabel: $("shareLabel"),
     inSalary: $("inSalary"), inWorkDays: $("inWorkDays"),
     inStartH: $("inStartH"), inStartM: $("inStartM"), inEndH: $("inEndH"), inEndM: $("inEndM"),
@@ -2763,6 +2824,50 @@
   }
 
   /* ---------- 设置面板 ---------- */
+  var sheetPane = "shift";
+  var SEEN_KEY = "money-meter.seenVersion";
+
+  function seenVersion(){
+    try { return localStorage.getItem(SEEN_KEY) || ""; } catch (e) { return ""; }
+  }
+
+  function hasUnseenUpdate(){
+    if (state.firstRun) return false;
+    return seenVersion() !== APP_VERSION;
+  }
+
+  function markUpdateSeen(silent){
+    try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch (e) {}
+    if (!silent) updateUpdateDots();
+  }
+
+  function updateUpdateDots(){
+    var unseen = hasUnseenUpdate();
+    if (el.updateDot) el.updateDot.classList.toggle("show", unseen);
+    if (el.gearDot) el.gearDot.classList.toggle("show", unseen);
+  }
+
+  function setSheetPane(name){
+    var names = ["shift", "ot", "free", "data", "update"];
+    if (names.indexOf(name) < 0) name = "shift";
+    sheetPane = name;
+    var tabs = el.sheetTabs.querySelectorAll("button");
+    for (var i = 0; i < tabs.length; i++){
+      var on = tabs[i].getAttribute("data-pane") === name;
+      tabs[i].classList.toggle("on", on);
+      tabs[i].setAttribute("aria-selected", on ? "true" : "false");
+    }
+    var panes = el.sheetBody.querySelectorAll(".pane");
+    for (var j = 0; j < panes.length; j++){
+      panes[j].hidden = panes[j].getAttribute("data-pane") !== name;
+    }
+    el.sheetBody.scrollTop = 0;
+    var editable = name === "shift" || name === "ot" || name === "free";
+    el.sheetFoot.hidden = !editable;
+    el.sheet.classList.toggle("no-foot", !editable);
+    if (name === "update") markUpdateSeen();
+  }
+
   function openSheet(){
     var c = state.cfg;
     el.inSalary.value = c.salary;
@@ -2790,6 +2895,7 @@
     el.inCycleStart.value = isValidDateKey(c.cycleStart) ? c.cycleStart : dayKey(Date.now());
     el.introCard.hidden = !state.firstRun;
     updatePreview();
+    setSheetPane(hasUnseenUpdate() ? "update" : "shift");
     el.sheet.classList.add("open");
     el.backdrop.classList.add("open");
   }
@@ -2800,6 +2906,11 @@
   }
 
   el.settingsBtn.addEventListener("click", openSheet);
+  el.sheetTabs.addEventListener("click", function(ev){
+    var btn = ev.target.closest ? ev.target.closest("button") : null;
+    if (!btn) return;
+    setSheetPane(btn.getAttribute("data-pane"));
+  });
   el.backdrop.addEventListener("click", closeSheet);
   $("closeSheet").addEventListener("click", closeSheet);
 
@@ -3116,6 +3227,8 @@
   /* ---------- 启动 ---------- */
   initSelects();
   load();
+  if (state.firstRun) markUpdateSeen(true);
+  updateUpdateDots();
   renderChangelog();
   document.querySelectorAll(".tabs button").forEach(function(b){
     b.setAttribute("aria-selected", b.getAttribute("data-mode") === state.mode ? "true" : "false");
@@ -3175,7 +3288,10 @@
     APP_VERSION: APP_VERSION,
     CHANGELOG: CHANGELOG,
     renderChangelog: renderChangelog,
-    setScheduleMode: setScheduleMode
+    setScheduleMode: setScheduleMode,
+    setSheetPane: setSheetPane,
+    hasUnseenUpdate: hasUnseenUpdate,
+    updateUpdateDots: updateUpdateDots
   };
 })();
 </script>

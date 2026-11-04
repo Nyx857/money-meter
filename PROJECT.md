@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.1**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「关于」直接渲染）
+- 当前版本：**v1.3.2**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -52,6 +52,7 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
 版本      → APP_VERSION + CHANGELOG → renderChangelog()
+设置分类  → setSheetPane()：班次 / 加班 / 自由 / 数据 / 更新，未读版本用 localStorage 的 money-meter.seenVersion
 ```
 
 **`CORE:START/END` 两个注释标记不能删**，测试靠它切出代码块。
@@ -73,6 +74,8 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 13. **循环位置用天数编号算**：`dayNumber()` 取 UTC 年月日，避免夏令时让某天变 23/25 小时；`((diff % len) + len) % len` 处理锚点之前的日期。
 14. **发版要改两处**：`APP_VERSION` 和 `CHANGELOG` 顶部（版本号 / 日期 / 内容）。设置里的更新日志直接渲染这个数组，不要另写一份 HTML。
 15. **主界面必须一屏放下**：`.app` 用 `100dvh` + `space-between`，间距/字号用 `clamp(..., vh, ...)` 随视口高度收缩；只在极短屏隐藏次要信息（页脚、四格补充行、自由视图第二段）。加固定高度模块前先在 393×568 / 360×640 / 393×700 / 393×852 四个尺寸量一遍。
+16. **设置按分类放**：`.pane[data-pane]` 五个页面，新增设置项放进对应 pane，不要重新堆成一条长表；保存按钮只在可编辑页显示。更新日志只出现在「更新」页，不要复制到别处。
+17. **未读版本逻辑**：`money-meter.seenVersion` 与 `APP_VERSION` 不同且不是首次使用时，齿轮亮小圆点，打开设置默认落在「更新」页；进入该页就写 seen。首次使用（firstRun）在启动时静默写 seen，避免新用户刚设置完就被提示更新。
 
 ## 6. 数据结构
 
@@ -160,6 +163,8 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 循环预览相位不对 | 上四休一落在错误的星期几 | `cycleStart` 是锚点，切到 cycle 模式时默认今天；改日期后立即重算预览 |
 | 主界面上下滑一截 | 手机浏览器工具栏占掉高度，`100%` 按布局视口算 | 改 `100dvh` + 流体 `clamp`；`justify-content:space-between` 吃掉余量，短屏只隐藏次要行 |
 | 窄屏自由视图顶出屏幕 | 360×640 说明卡文字换行，页面高 44px | 窄屏（≤380）且高度 ≤820 时把说明卡收成一段 |
+| 设置面板一长条找不到更新 | 想看日志得滑到底 | 分五个页签 + 未读小圆点；未读时打开设置直接落到「更新」页 |
+| 页脚隐藏后内容压到 Home 条 | 数据和更新页没有保存按钮 | `#sheet.no-foot .sheet-body` 补 `safe-area-inset-bottom` |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
 ## 10. 版本记录
@@ -171,6 +176,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.2 | P0 配置导出/导入（v4 备份格式，带校验与老版本迁移）；P1 法定节假日整班 3×；P2 多段休息（`breaks`，老 `lunch*` 自动迁移）；P3 记录面板补录/删除 |
 | v1.3 | 上 N 休 M 循环排班（锚点 + 8 天预览 + 月计薪天数一键折算）；设置里加版本号/更新日志；底部显示版本号 |
 | v1.3.1 | 主界面按视口高度流体收紧，手机上一屏放下；短屏/窄屏隐藏次要说明；更新日志加本版本 |
+| v1.3.2 | 设置分「班次 / 加班 / 自由 / 数据 / 更新」五页；更新日志独立成页；未读版本小圆点 + 打开设置直接落到更新页；清空标记移到数据页 |
 
 ## 11. 待办清单
 
@@ -185,6 +191,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3 循环排班**：设置 → 上班怎么排 → 上几休几；锚点 + `cycleWork/cycleRest`，附 8 天预览和平均班数折算。
 - **v1.3 更新日志**：设置 → 关于，渲染 `CHANGELOG`；主界面底部显示 `APP_VERSION`。
 - **v1.3.1 一屏布局**：`100dvh` + `clamp(…, vh, …)` + `space-between`；四个视图在 320×568 到 393×852 全部无纵向滚动。
+- **v1.3.2 设置分页**：五个页签 + 未读版本提示；「更新」页单独看日志，不再需要滑到最底。
 
 ### 候选（未排期）
 
