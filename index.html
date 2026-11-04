@@ -30,12 +30,12 @@
     --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html{height:100%}
+  html{height:auto;overflow-x:hidden}
   body{
     margin:0;
-    height:auto;
     min-height:100vh;
     min-height:100dvh;
+    min-height:var(--vh100, 100dvh);
     background:var(--bg);
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
@@ -65,6 +65,7 @@
     z-index:1;
     min-height:100vh;
     min-height:100dvh;
+    min-height:var(--vh100, 100dvh);
     max-width:520px;
     margin:0 auto;
     padding:calc(var(--safe-t) + clamp(8px,1.65vh,14px)) 18px calc(var(--safe-b) + clamp(12px,2.6vh,22px));
@@ -76,8 +77,9 @@
 
   /* ---------- header ---------- */
   header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:clamp(28px,4vh,34px)}
+  .head-actions{display:flex;align-items:center;gap:6px;flex:none}
   .clock{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
-  .clock b{font-size:clamp(13px,1.8vh,15px);font-weight:600;letter-spacing:.02em}
+  .clock b{font-size:clamp(14px,1.9vh,16.5px);font-weight:600;letter-spacing:.02em}
   .clock span{font-size:12px;color:var(--dim)}
   .icon-btn{
     width:clamp(30px,4.2vh,36px);height:clamp(30px,4.2vh,36px);border-radius:12px;border:1px solid var(--line);
@@ -95,9 +97,9 @@
     70%{box-shadow:0 0 0 9px rgba(61,220,151,0)}
     100%{box-shadow:0 0 0 0 rgba(61,220,151,0)}
   }
-  .status-text{font-size:clamp(12px,1.6vh,13.5px);color:#b9c2cd;letter-spacing:.01em}
+  .status-text{font-size:clamp(13px,1.7vh,14.5px);color:#c6ced8;letter-spacing:.01em}
   .mult{
-    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
     padding:3px 7px;border-radius:7px;letter-spacing:.02em;
     background:rgba(61,220,151,.12);color:var(--green);
     border:1px solid rgba(61,220,151,.22);
@@ -116,7 +118,7 @@
     background:radial-gradient(circle,rgba(255,166,61,.26) 0%,rgba(255,107,107,.09) 45%,rgba(255,166,61,0) 68%);
   }
   .shift-line{
-    text-align:center;font-size:clamp(10px,1.3vh,11px);color:var(--dim);letter-spacing:.02em;
+    text-align:center;font-size:11.5px;color:#7c8592;letter-spacing:.02em;
     font-variant-numeric:tabular-nums;margin-top:clamp(-6px,-0.5vh,-4px);
   }
 
@@ -128,15 +130,15 @@
     margin-bottom:clamp(6px,1.2vh,10px);
   }
   .tabs button{
-    border:0;background:transparent;color:var(--dim);
-    font-size:12.5px;font-weight:600;padding:clamp(4px,.7vh,6px) clamp(10px,1.5vw,13px);border-radius:999px;
+    border:0;background:transparent;color:#8b95a3;
+    font-size:13.5px;font-weight:600;padding:clamp(4px,.75vh,6px) clamp(11px,1.6vw,14px);border-radius:999px;
     cursor:pointer;font-family:inherit;transition:.2s;letter-spacing:.02em;
   }
   .tabs button[aria-selected="true"]{background:rgba(255,255,255,.1);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
-  .amount-label{font-size:clamp(11.5px,1.5vh,12.5px);color:var(--dim);letter-spacing:.14em;margin-bottom:clamp(1px,.5vh,4px)}
+  .amount-label{font-size:clamp(12.5px,1.55vh,13px);color:#8b95a3;letter-spacing:.1em;margin-bottom:clamp(1px,.5vh,4px)}
   .amount{
     display:flex;align-items:baseline;justify-content:center;
-    font-size:calc(clamp(2.4rem,min(15vw,6.9vh),4.4rem) * var(--fit,1));
+    font-size:calc(clamp(2.8rem,min(15vw,7.3vh),4.4rem) * var(--fit,1));
     font-weight:700;line-height:1;letter-spacing:-.035em;
     font-variant-numeric:tabular-nums;
     text-shadow:0 6px 40px rgba(247,201,72,.14);
@@ -160,12 +162,12 @@
     content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
     width:1px;height:22px;background:rgba(255,255,255,.08);
   }
-  .speed b{font-size:clamp(13px,1.8vh,15px);font-weight:650;font-variant-numeric:tabular-nums;color:#dfe5ec;letter-spacing:-.01em}
+  .speed b{font-size:clamp(14px,1.9vh,16px);font-weight:650;font-variant-numeric:tabular-nums;color:#dfe5ec;letter-spacing:-.01em}
   .speed .item:first-child b{color:var(--gold)}
-  .speed i{font-size:clamp(9.5px,1.25vh,10.5px);font-style:normal;color:var(--dim);letter-spacing:.1em}
+  .speed i{font-size:11px;font-style:normal;color:#8b95a3;letter-spacing:.08em}
 
   /* ---------- bars ---------- */
-  .bar-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--dim);margin-bottom:clamp(3px,.7vh,6px);font-variant-numeric:tabular-nums;gap:8px}
+  .bar-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:#8b95a3;margin-bottom:clamp(3px,.7vh,6px);font-variant-numeric:tabular-nums;gap:8px}
   .bar-head span:last-child{text-align:right}
   .bar{height:5px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
   .bar > i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#f7c948,#ffa63d);transition:width .5s ease,background .4s ease}
@@ -182,9 +184,9 @@
     -webkit-backdrop-filter:blur(12px);
   }
   .ot-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .ot-title{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;flex:1 1 auto;overflow:hidden}
+  .ot-title{font-size:13.5px;color:#aab3bf;display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;flex:1 1 auto;overflow:hidden}
   .ot-title .tag{
-    font-size:10px;color:var(--dim);border:1px solid var(--line);padding:2px 6px;border-radius:6px;
+    font-size:11px;color:#7c8592;border:1px solid var(--line);padding:2px 6px;border-radius:6px;
     letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;
   }
@@ -192,8 +194,8 @@
   .ot-chips[hidden]{display:none}
   .chip{
     border:1px solid var(--line);background:rgba(255,255,255,.03);
-    color:var(--dim);font-family:inherit;font-size:11px;font-weight:600;
-    padding:4px 7px;border-radius:8px;cursor:pointer;font-variant-numeric:tabular-nums;
+    color:#8b95a3;font-family:inherit;font-size:12px;font-weight:600;
+    padding:4px 8px;border-radius:8px;cursor:pointer;font-variant-numeric:tabular-nums;
     transition:.18s;
   }
   .chip.on{color:#ffe6b0;border-color:rgba(247,201,72,.5);background:rgba(247,201,72,.13)}
@@ -230,9 +232,9 @@
   .holiday-btn.is-active{
     background:rgba(247,201,72,.13);border-color:rgba(247,201,72,.4);color:#ffe2a0;
   }
-  .ot-actions .ot-btn{font-size:14.5px}
-  .ot-actions .off-btn{font-size:13.5px}
-  .ot-hint{font-size:11px;color:var(--dim);text-align:center;line-height:1.5}
+  .ot-actions .ot-btn{font-size:15.5px}
+  .ot-actions .off-btn{font-size:14px}
+  .ot-hint{font-size:12px;color:#8b95a3;text-align:center;line-height:1.55}
   .ot-hint.warn{color:#ffb56b}
   .ot-hint.good{color:#e8c46a}
 
@@ -245,24 +247,24 @@
     min-height:clamp(46px,8.9vh,76px);
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   }
-  .tile .k{font-size:clamp(10px,1.3vh,11px);color:var(--dim);letter-spacing:.04em}
-  .tile .v{font-size:clamp(15px,2.25vh,19px);font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .tile .s{font-size:clamp(9.5px,1.25vh,10.5px);color:var(--dim);font-variant-numeric:tabular-nums}
+  .tile .k{font-size:12px;color:#8b95a3;letter-spacing:.03em}
+  .tile .v{font-size:clamp(17px,2.35vh,20px);font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .tile .s{font-size:11.5px;color:#7c8592;font-variant-numeric:tabular-nums}
   .tile .s:empty{display:none}
 
   /* ---------- footer ---------- */
   .explain{
     padding:13px 14px;border-radius:16px;
     background:rgba(255,255,255,.028);border:1px solid var(--line);
-    font-size:11px;color:#8792a0;line-height:1.8;letter-spacing:.01em;
+    font-size:12px;color:#98a3b1;line-height:1.75;letter-spacing:.01em;
   }
-  .explain-h{font-size:12px;font-weight:650;color:#cfd6de;margin-bottom:6px;letter-spacing:.02em}
+  .explain-h{font-size:13px;font-weight:650;color:#cfd6de;margin-bottom:6px;letter-spacing:.02em}
   .explain p{margin:0 0 6px}
   .explain p:last-child{margin-bottom:0}
   .explain b{color:#e0c98a;font-weight:600}
 
   .fun{
-    text-align:center;font-size:clamp(10.5px,1.4vh,12px);color:var(--muted);line-height:1.6;
+    text-align:center;font-size:12.5px;color:#aab3bf;line-height:1.6;
     padding:2px 6px;
   }
   .fun b{color:#e8c46a;font-weight:600}
@@ -276,7 +278,7 @@
   .share .ghost{height:clamp(34px,5.2vh,44px)}
   .ghost:active{transform:scale(.98);background:rgba(255,255,255,.07)}
   .ghost svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-  .foot{text-align:center;font-size:clamp(9.5px,1.25vh,10.5px);color:#3f4650;padding-top:2px;letter-spacing:.03em}
+  .foot{text-align:center;font-size:11px;color:#6a737f;padding-top:2px;letter-spacing:.03em}
 
   /* ---------- sheet ---------- */
   .backdrop{
@@ -301,8 +303,8 @@
   .sheet.open{transform:translateY(0)}
   .grab{width:36px;height:4px;border-radius:99px;background:rgba(255,255,255,.16);margin:6px auto 14px;flex:none}
   .sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex:none}
-  .sheet h2{font-size:16px;margin:0 0 3px;font-weight:650;letter-spacing:.01em}
-  .sheet .sub{font-size:11.5px;color:var(--dim);margin:0;line-height:1.5;padding-right:4px}
+  .sheet h2{font-size:18px;margin:0 0 3px;font-weight:650;letter-spacing:.01em}
+  .sheet .sub{font-size:12.5px;color:#7c8592;margin:0;line-height:1.5;padding-right:4px}
   .sheet-close{
     width:32px;height:32px;border-radius:10px;flex:none;
     border:1px solid var(--line);background:rgba(255,255,255,.04);
@@ -326,7 +328,7 @@
   .sheet-tabs button{
     position:relative;flex:1;height:34px;padding:0;border:1px solid transparent;
     border-radius:9px;background:transparent;color:var(--dim);
-    font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;
+    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
     white-space:nowrap;transition:.16s;
   }
   .sheet-tabs button.on{
@@ -348,7 +350,7 @@
   .clear-btn{
     height:40px;padding:0 14px;border-radius:11px;cursor:pointer;
     border:1px solid rgba(255,107,107,.25);background:rgba(255,107,107,.05);
-    color:#ff9a9a;font-family:inherit;font-size:12px;font-weight:600;
+    color:#ff9a9a;font-family:inherit;font-size:12.5px;font-weight:600;
   }
   .clear-btn:active{background:rgba(255,107,107,.11)}
 
@@ -366,7 +368,7 @@
     color:#ffd76a;font-style:normal;font-size:10px;font-weight:700;
     display:grid;place-items:center;flex:none;
   }
-  .intro-note{margin-top:10px;font-size:10.5px;color:#8d8778;line-height:1.65}
+  .intro-note{margin-top:10px;font-size:11.5px;color:#a49c8a;line-height:1.65}
 
   /* 实时折算 */
   .preview-wrap{
@@ -380,27 +382,27 @@
     background:rgba(255,255,255,.032);border:1px solid rgba(255,255,255,.07);
   }
   .pv{display:flex;flex-direction:column;gap:2px;min-width:0}
-  .pv span{font-size:10px;color:#5d6673;letter-spacing:.06em}
+  .pv span{font-size:11.5px;color:#7c8592;letter-spacing:.05em}
   .pv b{
     font-size:14.5px;font-weight:650;color:#e9eef4;font-variant-numeric:tabular-nums;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .pv em{font-size:10px;font-style:normal;color:#7c8592;font-variant-numeric:tabular-nums;
+  .pv em{font-size:11.5px;font-style:normal;color:#8b95a3;font-variant-numeric:tabular-nums;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pv:nth-child(4) b{color:#ffd76a}
 
   /* 分组标题 */
   .section{
     display:flex;align-items:center;gap:9px;
-    font-size:10.5px;color:#5d6673;letter-spacing:.16em;
+    font-size:11.5px;color:#7c8592;letter-spacing:.14em;
     margin:20px 0 10px;
   }
   .section:first-of-type{margin-top:8px}
   .section::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.06)}
 
   .field{margin-bottom:14px}
-  .field > label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:7px;letter-spacing:.03em}
-  .hint{font-size:10.5px;color:#4b545f;margin-top:6px;line-height:1.5}
+  .field > label{display:block;font-size:13.5px;color:#aab3bf;margin-bottom:7px;letter-spacing:.03em}
+  .hint{font-size:12px;color:#7c8592;margin-top:6px;line-height:1.55}
   .row{display:flex;gap:9px}
   .row > *{flex:1;min-width:0}
   input[type="number"]{-moz-appearance:textfield;appearance:textfield}
@@ -433,7 +435,7 @@
   .time-pair select option{background:#161a1f;color:var(--text)}
   .time-pair .colon{color:var(--dim);font-size:15px;font-variant-numeric:tabular-nums;padding-bottom:2px}
   .dur-hint{
-    margin-top:8px;font-size:11px;color:#8f99a6;line-height:1.6;
+    margin-top:8px;font-size:12px;color:#98a3b1;line-height:1.6;
     font-variant-numeric:tabular-nums;
   }
   .dur-hint b{color:#ffd76a;font-weight:600}
@@ -492,7 +494,7 @@
   }
   input[type="date"]:focus{border-color:rgba(247,201,72,.45);background:rgba(247,201,72,.06)}
   .cycle-preview{
-    font-size:10.5px;color:#8f99a6;line-height:1.85;
+    font-size:12px;color:#98a3b1;line-height:1.85;
     font-variant-numeric:tabular-nums;
   }
   .cycle-preview b{color:#ffd76a;font-weight:600}
@@ -567,9 +569,9 @@
   }
   .log-date{display:flex;flex-direction:column;gap:1px;flex:none;width:78px;min-width:0}
   .log-date b{font-size:13px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-  .log-date span{font-size:10px;color:var(--dim);white-space:nowrap}
+  .log-date span{font-size:11px;color:#7c8592;white-space:nowrap}
   .log-tag{
-    flex:none;padding:4px 8px;border-radius:7px;font-size:11px;line-height:1.2;
+    flex:none;padding:4px 8px;border-radius:7px;font-size:12px;line-height:1.2;
     border:1px solid var(--line);color:var(--muted);white-space:nowrap;
   }
   .log-tag.ot{color:#ffd0a0;border-color:rgba(255,166,61,.35);background:rgba(255,166,61,.09)}
@@ -591,7 +593,7 @@
   /* ---------- 更新日志 ---------- */
   .about-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
   .about-head b{font-size:13px;font-weight:650;letter-spacing:.01em}
-  .about-head span{font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .about-head span{font-size:11.5px;color:#7c8592;font-variant-numeric:tabular-nums}
   .changelog{display:flex;flex-direction:column;gap:8px}
   .cl-item{
     padding:10px 12px;border-radius:12px;
@@ -599,10 +601,10 @@
   }
   .cl-item.now{border-color:rgba(247,201,72,.22);background:rgba(247,201,72,.05)}
   .cl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
-  .cl-head b{font-size:12px;color:#e0c98a;font-weight:650}
+  .cl-head b{font-size:13px;color:#e0c98a;font-weight:650}
   .cl-item.now .cl-head b{color:#ffd76a}
-  .cl-head span{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
-  .cl-item ul{margin:0;padding-left:14px;color:#8792a0;font-size:10.5px;line-height:1.8}
+  .cl-head span{font-size:11px;color:#7c8592;font-variant-numeric:tabular-nums}
+  .cl-item ul{margin:0;padding-left:14px;color:#98a3b1;font-size:12px;line-height:1.8}
   .cl-item li::marker{color:#4b545f}
 
   /* ---------- 备份 / 恢复 ---------- */
@@ -610,7 +612,7 @@
   .data-btn{
     flex:1;height:42px;border-radius:12px;border:1px solid var(--line);
     background:rgba(255,255,255,.035);color:#c9d1da;
-    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:6px;transition:.18s;
   }
   .data-btn:active{transform:scale(.985);background:rgba(255,255,255,.085)}
@@ -634,7 +636,7 @@
   }
   .data-modal.open .data-card{transform:none}
   .data-card h3{margin:0;font-size:15px;font-weight:650;letter-spacing:.01em}
-  .data-card .data-sub{margin:0;font-size:11px;color:#7c8592;line-height:1.6}
+  .data-card .data-sub{margin:0;font-size:12px;color:#8b95a3;line-height:1.6}
   .data-text{
     flex:1;min-height:132px;height:180px;width:100%;resize:none;
     background:#0a0d10;border:1px solid rgba(255,255,255,.09);border-radius:12px;
@@ -670,14 +672,14 @@
   }
 
   /* 极短屏（小屏手机 + 浏览器工具栏全开）再收一点：优先保住大数字和按钮 */
-  @media (max-height:820px){
+  @media (max-height:780px){
     .foot{display:none}
   }
-  @media (max-height:700px){
+  @media (max-height:760px){
     .tile .s{display:none}
     .tile{min-height:44px}
   }
-  @media (max-height:620px){
+  @media (max-height:600px){
     .fun{display:none}
   }
   /* 自由视图的说明卡在短屏 / 窄屏上收成一小段，避免把整页顶出屏幕 */
@@ -687,9 +689,28 @@
     .explain p{margin-bottom:4px}
     .explain p + p{display:none}
   }
-  @media (max-height:560px){
+  @media (max-width:360px){
+    .chip{font-size:11px;padding:4px 6px}
+    .ot-title{font-size:13px}
+    .ot-title .tag{font-size:10.5px;padding:2px 5px}
+  }
+  @media (max-height:580px){
     .app{gap:5px;padding-bottom:calc(var(--safe-b) + 8px)}
-    .share .ghost{height:32px}
+  }
+  /* 再矮就优先保住金额 / 按钮 / 四格，进度条先让位 */
+  @media (max-height:530px){
+    .bar-head,.bar{display:none}
+  }
+  @media (max-height:500px){
+    .shift-line{display:none}
+  }
+  @media (max-height:490px){
+    .app{padding-top:calc(var(--safe-t) + 6px)}
+    .status{margin-top:0}
+  }
+  /* 极端矮屏 / 横屏：四格先让位，保住金额和操作 */
+  @media (max-height:460px){
+    .grid{display:none}
   }
   @media (prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important}
@@ -702,10 +723,15 @@
 <div class="app">
   <header>
     <div class="clock"><b id="clock">--:--:--</b><span id="dateText"></span></div>
-    <button class="icon-btn" id="settingsBtn" aria-label="设置">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      <i class="gear-dot" id="gearDot"></i>
-    </button>
+    <div class="head-actions">
+      <button class="icon-btn" id="shareBtn" aria-label="复制战绩" title="复制战绩">
+        <svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M12 3v13"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <i class="gear-dot" id="gearDot"></i>
+      </button>
+    </div>
   </header>
 
   <div class="status">
@@ -769,13 +795,6 @@
   </div>
 
   <div class="fun" id="funLine">—</div>
-
-  <div class="share">
-    <button class="ghost" id="shareBtn">
-      <svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M12 3v13"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/></svg>
-      <span id="shareLabel">复制本班战绩</span>
-    </button>
-  </div>
 
   <div class="foot">数据只存在这台设备上 · 按理想出勤估算 · <span id="footVersion">—</span></div>
 </div>
@@ -1144,8 +1163,14 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.3.2";
+  var APP_VERSION = "1.3.3";
   var CHANGELOG = [
+    { version: "1.3.3", date: "2026-11-05", items: [
+      "主界面字号整体加大、次要文字提亮，金额 / 状态 / 按钮更清楚",
+      "分享按钮移到右上角，底部不再占一整条；设置里的字号也一起加大",
+      "修复手机浏览器里「明明一屏却还能上下滑」：去掉多余高度，并用 visualViewport 兜底",
+      "窄屏加班时段不再被截断，极矮屏 / 横屏优先保住金额和操作按钮"
+    ] },
     { version: "1.3.2", date: "2026-11-05", items: [
       "设置面板分成「班次 / 加班 / 自由 / 数据 / 更新」五类，不用再滑一长条",
       "更新日志单独一页；有新版本时点设置会直接打开，齿轮上还会亮个小圆点",
@@ -1924,7 +1949,7 @@
     sheet: $("sheet"), backdrop: $("backdrop"), settingsBtn: $("settingsBtn"),
     sheetTabs: $("sheetTabs"), sheetBody: $("sheetBody"), sheetFoot: $("sheetFoot"),
     updateDot: $("updateDot"), gearDot: $("gearDot"),
-    shareBtn: $("shareBtn"), shareLabel: $("shareLabel"),
+    shareBtn: $("shareBtn"),
     inSalary: $("inSalary"), inWorkDays: $("inWorkDays"),
     inStartH: $("inStartH"), inStartM: $("inStartM"), inEndH: $("inEndH"), inEndM: $("inEndM"),
     breakList: $("breakList"), breakEmpty: $("breakEmpty"), addBreak: $("addBreak"),
@@ -2526,9 +2551,14 @@
       setTile(4, "时薪 / 日薪", "¥" + fmtRate(hourly), "日薪 ¥" + fmt2(totals.dailyPay), "");
     }
 
-    setText(el.shareLabel, state.mode === "month" ? "复制本月战绩"
+    var shareAria = state.mode === "month" ? "复制本月战绩"
       : state.mode === "rate" ? "复制时间单价"
-      : state.mode === "free" ? "复制自由计划" : "复制本班战绩");
+      : state.mode === "free" ? "复制自由计划" : "复制本班战绩";
+    if (cache.shareAria !== shareAria){
+      cache.shareAria = shareAria;
+      el.shareBtn.setAttribute("aria-label", shareAria);
+      el.shareBtn.setAttribute("title", shareAria);
+    }
 
     // 一句话总结（跟着当前视图走，只用"班 / 小时"这种跟自己有关的参照）
     var hourlyRate = totals.dailyPay / Math.max(1, dailyWorkSec(cfg) / 3600);
@@ -2862,7 +2892,7 @@
       panes[j].hidden = panes[j].getAttribute("data-pane") !== name;
     }
     el.sheetBody.scrollTop = 0;
-    var editable = name === "shift" || name === "ot" || name === "free";
+    var editable = name !== "update";
     el.sheetFoot.hidden = !editable;
     el.sheet.classList.toggle("no-foot", !editable);
     if (name === "update") markUpdateSeen();
@@ -3225,6 +3255,20 @@
   });
 
   /* ---------- 启动 ---------- */
+  (function trackViewportHeight(){
+    function update(){
+      var ae = document.activeElement;
+      if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+      var vv = window.visualViewport;
+      var h = (vv && vv.height) || window.innerHeight || 0;
+      if (h > 300) document.documentElement.style.setProperty("--vh100", h + "px");
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", function(){ setTimeout(update, 250); });
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", update);
+  })();
+
   initSelects();
   load();
   if (state.firstRun) markUpdateSeen(true);

@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.2**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.3.3**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -53,6 +53,7 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
 版本      → APP_VERSION + CHANGELOG → renderChangelog()
 设置分类  → setSheetPane()：班次 / 加班 / 自由 / 数据 / 更新，未读版本用 localStorage 的 money-meter.seenVersion
+视口高度  → trackViewportHeight() 写 --vh100（visualViewport 优先），兼容不支持 dvh 的旧 WebView
 ```
 
 **`CORE:START/END` 两个注释标记不能删**，测试靠它切出代码块。
@@ -76,6 +77,8 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 15. **主界面必须一屏放下**：`.app` 用 `100dvh` + `space-between`，间距/字号用 `clamp(..., vh, ...)` 随视口高度收缩；只在极短屏隐藏次要信息（页脚、四格补充行、自由视图第二段）。加固定高度模块前先在 393×568 / 360×640 / 393×700 / 393×852 四个尺寸量一遍。
 16. **设置按分类放**：`.pane[data-pane]` 五个页面，新增设置项放进对应 pane，不要重新堆成一条长表；保存按钮只在可编辑页显示。更新日志只出现在「更新」页，不要复制到别处。
 17. **未读版本逻辑**：`money-meter.seenVersion` 与 `APP_VERSION` 不同且不是首次使用时，齿轮亮小圆点，打开设置默认落在「更新」页；进入该页就写 seen。首次使用（firstRun）在启动时静默写 seen，避免新用户刚设置完就被提示更新。
+18. **字号有下限**：主界面正文/标签不低于 11px，设置说明不低于 12px；屏幕矮的时候优先隐藏次要块（页脚、四格补充行、进度条、四格），不要把字缩到 9–10px。
+19. **视口高度不要写死**：`html` 不设 `height:100%`（会在移动浏览器工具栏可见时多出一截可滚动区域）；`body/.app` 用 `--vh100` → `100dvh` → `100vh` 的兜底链，JS 用 `visualViewport.height` 更新。
 
 ## 6. 数据结构
 
@@ -165,6 +168,9 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 窄屏自由视图顶出屏幕 | 360×640 说明卡文字换行，页面高 44px | 窄屏（≤380）且高度 ≤820 时把说明卡收成一段 |
 | 设置面板一长条找不到更新 | 想看日志得滑到底 | 分五个页签 + 未读小圆点；未读时打开设置直接落到「更新」页 |
 | 页脚隐藏后内容压到 Home 条 | 数据和更新页没有保存按钮 | `#sheet.no-foot .sheet-body` 补 `safe-area-inset-bottom` |
+| 手机上一屏却还能滑 | 浏览器工具栏可见时页面多出可滚动高度 | 去掉 `html{height:100%}`，用 `--vh100`（visualViewport）兜底；不要再给 body/app 写 `100%` |
+| 小屏加班时段被截断 | 320 宽显示 `17:00–2…` | ≤360px 时缩小 chip 和 tag 字号/内边距 |
+| 字号越缩越小、观感差 | 短屏上标签只有 9–10px | 字号设下限，改为隐藏次要块 / 四格让位，不要无限缩字 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
 ## 10. 版本记录
@@ -177,6 +183,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3 | 上 N 休 M 循环排班（锚点 + 8 天预览 + 月计薪天数一键折算）；设置里加版本号/更新日志；底部显示版本号 |
 | v1.3.1 | 主界面按视口高度流体收紧，手机上一屏放下；短屏/窄屏隐藏次要说明；更新日志加本版本 |
 | v1.3.2 | 设置分「班次 / 加班 / 自由 / 数据 / 更新」五页；更新日志独立成页；未读版本小圆点 + 打开设置直接落到更新页；清空标记移到数据页 |
+| v1.3.3 | 字号整体加大、次要文字提亮；分享移到右上角；修复移动端工具栏造成的假滚动；窄屏标签截断 / 极矮屏四格让位 |
 
 ## 11. 待办清单
 
@@ -192,6 +199,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3 更新日志**：设置 → 关于，渲染 `CHANGELOG`；主界面底部显示 `APP_VERSION`。
 - **v1.3.1 一屏布局**：`100dvh` + `clamp(…, vh, …)` + `space-between`；四个视图在 320×568 到 393×852 全部无纵向滚动。
 - **v1.3.2 设置分页**：五个页签 + 未读版本提示；「更新」页单独看日志，不再需要滑到最底。
+- **v1.3.3 可读性 / 假滚动修复**：字号下限提升、分享移到 header、`html` 不再写死 100%、`visualViewport` 兜底；320×480 到 1440×900 全模式无纵向溢出。
 
 ### 候选（未排期）
 
