@@ -398,6 +398,25 @@
   }
   .dur-hint b{color:#ffd76a;font-weight:600}
   .dur-hint.bad{color:#ffb56b}
+  .break-list{display:flex;flex-direction:column;gap:8px}
+  .break-row{display:flex;align-items:center;gap:6px}
+  .break-row .time-pair{flex:1;min-width:0}
+  .break-del{
+    width:34px;height:34px;flex:none;border-radius:10px;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);
+    color:#6a737f;font-family:inherit;font-size:17px;line-height:1;cursor:pointer;
+    display:grid;place-items:center;transition:.16s;
+  }
+  .break-del:active{color:var(--red);border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.07)}
+  .break-empty{font-size:11.5px;color:#4b545f;padding:2px 0 0}
+  .break-empty[hidden]{display:none}
+  .add-break{
+    width:100%;height:38px;margin-top:8px;border-radius:11px;
+    border:1px dashed rgba(255,255,255,.14);background:transparent;
+    color:var(--dim);font-family:inherit;font-size:12px;cursor:pointer;transition:.16s;
+  }
+  .add-break:active{background:rgba(255,255,255,.045);color:var(--muted)}
+  .add-break[hidden]{display:none}
   .week{display:flex;gap:6px}
   .week button{
     flex:1;height:38px;border-radius:11px;border:1px solid var(--line);
@@ -651,20 +670,11 @@
     </div>
 
     <div class="field">
-      <div class="switch"><span>中间有休息（不计薪）</span><button type="button" class="toggle" id="inLunch" aria-label="休息开关"></button></div>
-      <div class="row" style="margin-top:10px" id="lunchRow">
-        <div class="time-pair">
-          <select id="inLunchStartH" aria-label="休息开始小时"></select>
-          <span class="colon">:</span>
-          <select id="inLunchStartM" aria-label="休息开始分钟"></select>
-        </div>
-        <div class="time-pair">
-          <select id="inLunchEndH" aria-label="休息结束小时"></select>
-          <span class="colon">:</span>
-          <select id="inLunchEndM" aria-label="休息结束分钟"></select>
-        </div>
-      </div>
-      <div class="hint" id="lunchHint">上班和加班里都会扣。比如 17:30–18:00，就是加班的休息。</div>
+      <label>休息时段（不计薪）</label>
+      <div class="break-list" id="breakList"></div>
+      <div class="break-empty" id="breakEmpty">没有休息时段，整班都计薪</div>
+      <button type="button" class="add-break" id="addBreak">＋ 加一段休息</button>
+      <div class="hint">上班和加班里都会扣。默认 17:30–18:00 就是加班里的休息。</div>
     </div>
 
     <div class="field">
@@ -789,15 +799,17 @@
   var MIN_MS = 60000;
   var DAY_MS = 86400000;
 
+  // 备份文件里的配置结构版本（和 localStorage key 的 v3 不是一回事）
+  // v3 = 单段 lunch*，v4 = breaks 数组
+  var CONFIG_VERSION = 4;
+
   // 配置默认值：导出 / 导入 / 迁移都以此为准
   var DEFAULTS = {
     salary: 5000,
     workDays: 21.75,
     workStart: "09:00",
     workEnd: "17:00",
-    lunchEnabled: true,
-    lunchStart: "17:30",
-    lunchEnd: "18:00",
+    breaks: [{ start: "17:30", end: "18:00" }],
     workweek: [1, 2, 3, 4, 5],
     otStart: "17:00",
     otEnd: "21:00",
@@ -809,6 +821,47 @@
     saved: 0,
     returnRate: 5
   };
+
+  // 深拷贝一份默认配置（breaks 是数组，不能共享引用）
+  function defaultCfg(){
+    var c = Object.assign({}, DEFAULTS);
+    c.workweek = DEFAULTS.workweek.slice();
+    c.breaks = (DEFAULTS.breaks || []).map(function(b){ return { start: b.start, end: b.end }; });
+    return c;
+  }
+
+  function isHmString(v){
+    return typeof v === "string" && /^\d{1,2}:\d{1,2}$/.test(v);
+  }
+
+  // 休息时段最多几段（再多也放不下设置面板）
+  var MAX_BREAKS = 6;
+
+  function sanitizeBreaks(arr){
+    var out = [];
+    if (!Array.isArray(arr)) return out;
+    for (var i = 0; i < arr.length && out.length < MAX_BREAKS; i++){
+      var b = arr[i];
+      if (!b || typeof b !== "object" || Array.isArray(b)) continue;
+      if (!isHmString(b.start) || !isHmString(b.end)) continue;
+      var st = minToHm(hmToMin(b.start));
+      var en = minToHm(hmToMin(b.end));
+      if (st === en) continue;
+      out.push({ start: st, end: en });
+    }
+    return out;
+  }
+
+  // 从一份配置里取休息时段：新格式直接用，老格式（单段 lunch*）自动迁移
+  function breaksFromCfg(raw){
+    if (!raw || typeof raw !== "object") return defaultCfg().breaks;
+    if (Array.isArray(raw.breaks)) return sanitizeBreaks(raw.breaks);
+    if (raw.lunchEnabled === false) return [];
+    if (raw.lunchStart != null || raw.lunchEnd != null){
+      return sanitizeBreaks([{ start: raw.lunchStart, end: raw.lunchEnd }]);
+    }
+    return defaultCfg().breaks;
+  }
 
   function pad2(n){ return (n < 10 ? "0" : "") + n; }
 
@@ -866,36 +919,50 @@
 
   function isOvernight(cfg){ return hmToMin(cfg.workEnd) <= hmToMin(cfg.workStart); }
 
-  // 休息时段相对班次开始的位置（分钟）
-  function breakWindow(cfg){
-    if (!cfg.lunchEnabled) return null;
+  // 所有休息时段相对班次开始的位置（分钟），可跨零点
+  function breakWindows(cfg){
+    var list = (cfg && Array.isArray(cfg.breaks)) ? cfg.breaks : [];
     var start = hmToMin(cfg.workStart);
     var mod = function(m){ return ((m % 1440) + 1440) % 1440; };
-    var a = mod(hmToMin(cfg.lunchStart) - start);
-    var d = mod(hmToMin(cfg.lunchEnd) - hmToMin(cfg.lunchStart));
-    if (!(d > 0)) return null;
-    return { a: a, b: a + d };
+    var out = [];
+    for (var i = 0; i < list.length; i++){
+      var b = list[i] || {};
+      var d = mod(hmToMin(b.end) - hmToMin(b.start));
+      if (!(d > 0)) continue;
+      var a = mod(hmToMin(b.start) - start);
+      out.push({ a: a, b: a + d });
+    }
+    out.sort(function(x, y){ return x.a - y.a; });
+    return out;
   }
 
   // 班次内部的计薪时段（相对班次开始，单位分钟），休息只要沾到就扣掉
   function shiftSegments(cfg){
     var dur = shiftDurationMin(cfg);
-    var whole = [[0, dur]];
-    var w = breakWindow(cfg);
-    if (!w) return whole;
-    if (w.b <= 0 || w.a >= dur) return whole;   // 休息完全在班次外
-    var out = [];
-    if (w.a > 0) out.push([0, Math.min(w.a, dur)]);
-    if (w.b < dur) out.push([Math.max(w.b, 0), dur]);
-    return out.length ? out : [];
+    var segs = [[0, dur]];
+    var wins = breakWindows(cfg);
+    for (var i = 0; i < wins.length; i++){
+      var w = wins[i];
+      if (w.b <= 0 || w.a >= dur) continue;   // 休息完全在班次外
+      var next = [];
+      for (var j = 0; j < segs.length; j++){
+        var sg = segs[j];
+        if (w.b <= sg[0] || w.a >= sg[1]){ next.push(sg); continue; }
+        if (w.a > sg[0]) next.push([sg[0], Math.min(w.a, sg[1])]);
+        if (w.b < sg[1]) next.push([Math.max(w.b, sg[0]), sg[1]]);
+      }
+      segs = next;
+    }
+    return segs;
   }
 
   // 休息时段的绝对区间（给加班扣除用）
   function breakRanges(cfg, dayTs){
-    var w = breakWindow(cfg);
-    if (!w) return [];
+    var wins = breakWindows(cfg);
     var s0 = shiftStartTs(cfg, dayTs);
-    return [[s0 + w.a * MIN_MS, s0 + w.b * MIN_MS]];
+    var out = [];
+    for (var i = 0; i < wins.length; i++) out.push([s0 + wins[i].a * MIN_MS, s0 + wins[i].b * MIN_MS]);
+    return out;
   }
 
   function dailyWorkSec(cfg){
@@ -1188,8 +1255,11 @@
         return { key: holiday ? "holiday" : "working", label: lbl, mult: segMult, dayTs: dayTs };
       }
     }
-    if (segs.length === 2 && el >= segs[0][1] && el < segs[1][0]){
-      return { key: "lunch", label: "休息中", mult: 0, dayTs: dayTs };
+    var wins = breakWindows(cfg);
+    for (var wi = 0; wi < wins.length; wi++){
+      if (el >= wins[wi].a && el < wins[wi].b){
+        return { key: "lunch", label: "休息中", mult: 0, dayTs: dayTs };
+      }
     }
     return { key: "idle", label: "不计薪", mult: 0, dayTs: dayTs };
   }
@@ -1276,21 +1346,21 @@
   }
 
   // 只认识 DEFAULTS 里的字段，其余忽略；数值统一夹到合理范围
-  function normalizeCfg(raw){
+  // lenient = true 时允许月薪为 0（本地已有配置的兼容读取）
+  function normalizeCfg(raw, lenient){
     if (!isPlainObject(raw)) return null;
-    var c = Object.assign({}, DEFAULTS);
+    var c = defaultCfg();
     Object.keys(DEFAULTS).forEach(function(k){
+      if (k === "breaks") return;
       if (raw[k] !== undefined && raw[k] !== null) c[k] = raw[k];
     });
     c.salary = Number(c.salary) || 0;
-    if (!(c.salary > 0)) return null;
+    if (!(c.salary > 0) && !lenient) return null;
     var wd = Number(c.workDays);
     c.workDays = wd > 0 ? Math.min(31, wd) : DEFAULTS.workDays;
     c.workStart = timeOr(c.workStart, DEFAULTS.workStart);
     c.workEnd = timeOr(c.workEnd, DEFAULTS.workEnd);
-    c.lunchEnabled = !!c.lunchEnabled;
-    c.lunchStart = timeOr(c.lunchStart, DEFAULTS.lunchStart);
-    c.lunchEnd = timeOr(c.lunchEnd, DEFAULTS.lunchEnd);
+    c.breaks = breaksFromCfg(raw);
 
     var ww = [];
     if (Array.isArray(c.workweek)){
@@ -1375,7 +1445,7 @@
      ========================================================== */
   var KEY = "money-meter.v3";
   var state = {
-    cfg: Object.assign({}, DEFAULTS),
+    cfg: defaultCfg(),
     dayFlags: {},
     mode: "today",
     firstRun: false
@@ -1387,7 +1457,7 @@
     if (!raw){ state.firstRun = true; return; }
     try {
       var obj = JSON.parse(raw);
-      state.cfg = Object.assign({}, DEFAULTS, obj.cfg || {});
+      state.cfg = normalizeCfg(obj.cfg, true) || defaultCfg();
       state.mode = ["today", "month", "rate", "free"].indexOf(obj.mode) >= 0 ? obj.mode : "today";
       var now = Date.now();
       var keep = {};
@@ -1436,9 +1506,7 @@
     shareBtn: $("shareBtn"), shareLabel: $("shareLabel"),
     inSalary: $("inSalary"), inWorkDays: $("inWorkDays"),
     inStartH: $("inStartH"), inStartM: $("inStartM"), inEndH: $("inEndH"), inEndM: $("inEndM"),
-    inLunch: $("inLunch"), lunchRow: $("lunchRow"), lunchHint: $("lunchHint"),
-    inLunchStartH: $("inLunchStartH"), inLunchStartM: $("inLunchStartM"),
-    inLunchEndH: $("inLunchEndH"), inLunchEndM: $("inLunchEndM"),
+    breakList: $("breakList"), breakEmpty: $("breakEmpty"), addBreak: $("addBreak"),
     inWeek: $("inWeek"),
     inOtStartH: $("inOtStartH"), inOtStartM: $("inOtStartM"),
     inOtEndH: $("inOtEndH"), inOtEndM: $("inOtEndM"),
@@ -1484,10 +1552,10 @@
   }
 
   function initSelects(){
-    [el.inStartH, el.inEndH, el.inOtStartH, el.inOtEndH, el.inLunchStartH, el.inLunchEndH].forEach(function(s){
+    [el.inStartH, el.inEndH, el.inOtStartH, el.inOtEndH].forEach(function(s){
       fillSelect(s, 24);
     });
-    [el.inStartM, el.inEndM, el.inOtStartM, el.inOtEndM, el.inLunchStartM, el.inLunchEndM].forEach(function(s){
+    [el.inStartM, el.inEndM, el.inOtStartM, el.inOtEndM].forEach(function(s){
       fillSelect(s, 60);
     });
   }
@@ -1504,15 +1572,70 @@
     return pad2(h) + ":" + pad2(m);
   }
 
+  /* ---- 休息时段行：增删 / 读取 ---- */
+  var BREAK_ROW_HTML =
+    '<div class="time-pair">' +
+      '<select data-role="sh" aria-label="休息开始小时"></select><span class="colon">:</span>' +
+      '<select data-role="sm" aria-label="休息开始分钟"></select>' +
+    '</div>' +
+    '<div class="time-pair">' +
+      '<select data-role="eh" aria-label="休息结束小时"></select><span class="colon">:</span>' +
+      '<select data-role="em" aria-label="休息结束分钟"></select>' +
+    '</div>' +
+    '<button type="button" class="break-del" aria-label="删除这段休息">×</button>';
+
+  function breakRowEl(start, end){
+    var row = document.createElement("div");
+    row.className = "break-row";
+    row.innerHTML = BREAK_ROW_HTML;
+    var q = function(role){ return row.querySelector('[data-role="' + role + '"]'); };
+    var sh = q("sh"), sm = q("sm"), eh = q("eh"), em = q("em");
+    fillSelect(sh, 24); fillSelect(sm, 60);
+    fillSelect(eh, 24); fillSelect(em, 60);
+    setTimePair(sh, sm, start || "12:00");
+    setTimePair(eh, em, end || "13:00");
+    return row;
+  }
+
+  function breakRows(){
+    return el.breakList.querySelectorAll(".break-row");
+  }
+
+  function updateBreakUI(){
+    var n = breakRows().length;
+    el.breakEmpty.hidden = n > 0;
+    el.addBreak.hidden = n >= MAX_BREAKS;
+  }
+
+  function renderBreakRows(list){
+    el.breakList.innerHTML = "";
+    var arr = Array.isArray(list) ? list : [];
+    for (var i = 0; i < arr.length && i < MAX_BREAKS; i++){
+      el.breakList.appendChild(breakRowEl(arr[i].start, arr[i].end));
+    }
+    updateBreakUI();
+  }
+
+  function collectBreaks(){
+    var rows = breakRows();
+    var out = [];
+    for (var i = 0; i < rows.length; i++){
+      var sh = rows[i].querySelector('[data-role="sh"]'), sm = rows[i].querySelector('[data-role="sm"]');
+      var eh = rows[i].querySelector('[data-role="eh"]'), em = rows[i].querySelector('[data-role="em"]');
+      var st = getTimePair(sh, sm), en = getTimePair(eh, em);
+      if (st === en) continue;   // 开始=结束的行不算数，保存时会提示
+      out.push({ start: st, end: en });
+    }
+    return out;
+  }
+
   function formCfg(){
     return {
       salary: parseFloat(el.inSalary.value) || 0,
       workDays: parseFloat(el.inWorkDays.value) || 0,
       workStart: getTimePair(el.inStartH, el.inStartM),
       workEnd: getTimePair(el.inEndH, el.inEndM),
-      lunchEnabled: el.inLunch.classList.contains("on"),
-      lunchStart: getTimePair(el.inLunchStartH, el.inLunchStartM),
-      lunchEnd: getTimePair(el.inLunchEndH, el.inLunchEndM),
+      breaks: collectBreaks(),
       workweek: [],
       otStart: getTimePair(el.inOtStartH, el.inOtStartM),
       otEnd: getTimePair(el.inOtEndH, el.inOtEndM),
@@ -1556,11 +1679,15 @@
         var delta = hmToMin(newEnd) - hmToMin(oldEnd);
         var otEnd = getTimePair(el.inOtEndH, el.inOtEndM);
         var otDur = relMin(otStart, otEnd);
-        var ls = getTimePair(el.inLunchStartH, el.inLunchStartM);
-        var le = getTimePair(el.inLunchEndH, el.inLunchEndM);
-        if (el.inLunch.classList.contains("on") && breakInsideOt(ls, le, otStart, otEnd)){
-          setTimePair(el.inLunchStartH, el.inLunchStartM, shiftHm(ls, delta));
-          setTimePair(el.inLunchEndH, el.inLunchEndM, shiftHm(le, delta));
+        var rows = breakRows();
+        for (var i = 0; i < rows.length; i++){
+          var sh = rows[i].querySelector('[data-role="sh"]'), sm = rows[i].querySelector('[data-role="sm"]');
+          var eh = rows[i].querySelector('[data-role="eh"]'), em = rows[i].querySelector('[data-role="em"]');
+          var ls = getTimePair(sh, sm), le = getTimePair(eh, em);
+          if (breakInsideOt(ls, le, otStart, otEnd)){
+            setTimePair(sh, sm, shiftHm(ls, delta));
+            setTimePair(eh, em, shiftHm(le, delta));
+          }
         }
         setTimePair(el.inOtStartH, el.inOtStartM, newEnd);
         setTimePair(el.inOtEndH, el.inOtEndM, shiftHm(newEnd, otDur));
@@ -1579,7 +1706,7 @@
     var over = isOvernight(cfg);
 
     var txt = cfg.workStart + " → " + (over ? "次日 " : "") + cfg.workEnd + " · 计薪 <b>" + fmtDur(workMin) + "</b>";
-    if (cfg.lunchEnabled && dur - workMin > 0) txt += "（已扣休息 " + fmtDur(dur - workMin) + "）";
+    if (dur - workMin > 0) txt += "（已扣休息 " + fmtDur(dur - workMin) + "）";
     if (dur >= 1440) txt += " · 上下班同一时间会被当成 24 小时班";
     el.durHint.innerHTML = txt;
     el.durHint.classList.toggle("bad", dur >= 1440 || workMin <= 0);
@@ -1605,8 +1732,6 @@
     setText(el.pvHourSub, base > 0 ? "日薪 ¥" + fmt2(base * dailyWorkSec(cfg)) : "—");
     setText(el.pvOT, otNet > 0 ? fmtDur(otNet) : "—");
     setText(el.pvOTSub, otNet > 0 && base > 0 ? "+¥" + fmt2(otPay) + "（×" + multText(mult) + "）" : "—");
-
-    el.lunchRow.style.opacity = cfg.lunchEnabled ? "1" : ".45";
   }
 
   /* ==========================================================
@@ -2220,9 +2345,7 @@
     el.inWorkDays.value = c.workDays;
     setTimePair(el.inStartH, el.inStartM, c.workStart);
     setTimePair(el.inEndH, el.inEndM, c.workEnd);
-    el.inLunch.classList.toggle("on", !!c.lunchEnabled);
-    setTimePair(el.inLunchStartH, el.inLunchStartM, c.lunchStart);
-    setTimePair(el.inLunchEndH, el.inLunchEndM, c.lunchEnd);
+    renderBreakRows(c.breaks);
     setTimePair(el.inOtStartH, el.inOtStartM, c.otStart);
     setTimePair(el.inOtEndH, el.inOtEndM, c.otEnd);
     el.inOTW.value = c.otWeekday;
@@ -2252,8 +2375,23 @@
   el.backdrop.addEventListener("click", closeSheet);
   $("closeSheet").addEventListener("click", closeSheet);
 
-  el.inLunch.addEventListener("click", function(){
-    this.classList.toggle("on");
+  el.breakList.addEventListener("change", function(ev){
+    if (ev.target && ev.target.tagName === "SELECT") updatePreview();
+  });
+
+  el.breakList.addEventListener("click", function(ev){
+    var btn = ev.target.closest ? ev.target.closest(".break-del") : null;
+    if (!btn) return;
+    var row = btn.closest ? btn.closest(".break-row") : null;
+    if (row && row.parentNode) row.parentNode.removeChild(row);
+    updateBreakUI();
+    updatePreview();
+  });
+
+  el.addBreak.addEventListener("click", function(){
+    if (breakRows().length >= MAX_BREAKS){ toast("最多 " + MAX_BREAKS + " 段休息"); return; }
+    el.breakList.appendChild(breakRowEl("12:00", "13:00"));
+    updateBreakUI();
     updatePreview();
   });
 
@@ -2265,8 +2403,7 @@
   [el.inEndH, el.inEndM].forEach(function(x){
     if (x) x.addEventListener("change", syncOvertime);
   });
-  [el.inStartH, el.inStartM, el.inLunchStartH, el.inLunchStartM,
-   el.inLunchEndH, el.inLunchEndM, el.inOtStartH, el.inOtStartM, el.inOtEndH, el.inOtEndM].forEach(function(x){
+  [el.inStartH, el.inStartM, el.inOtStartH, el.inOtStartM, el.inOtEndH, el.inOtEndM].forEach(function(x){
     if (x) x.addEventListener("change", updatePreview);
   });
 
@@ -2274,6 +2411,7 @@
     var cfg = formCfg();
     if (!(cfg.salary > 0)){ toast("月薪要填个大于 0 的数"); return; }
     if (!(cfg.workDays > 0) || cfg.workDays > 31){ toast("月计薪天数不太对"); return; }
+    if (cfg.breaks.length !== breakRows().length){ toast("有休息时段的开始和结束时间一样，改一下"); return; }
     if (!(dailyWorkSec(cfg) > 0)){ toast("休息时段把班次占满了，改一下时间"); return; }
     var days = [];
     el.inWeek.querySelectorAll("button.on").forEach(function(b){ days.push(Number(b.getAttribute("data-d"))); });
@@ -2308,7 +2446,7 @@
   var dataMode = "export";
 
   function encodeBackup(){
-    return JSON.stringify({ v: 3, cfg: state.cfg, dayFlags: state.dayFlags });
+    return JSON.stringify({ v: CONFIG_VERSION, cfg: state.cfg, dayFlags: state.dayFlags });
   }
 
   function openData(mode){
@@ -2340,8 +2478,8 @@
   }
 
   function versionNote(v){
-    if (v === 3) return "";
-    if (v > 0) return "（来自 v" + v + " 的备份，已按当前版本补全）";
+    if (v === CONFIG_VERSION) return "";
+    if (v > 0) return "（来自 v" + v + " 的备份，已迁移到 v" + CONFIG_VERSION + "）";
     return "（没有版本标记，已按当前版本补全）";
   }
 
@@ -2447,7 +2585,8 @@
     encodeBackup: encodeBackup,
     openData: openData,
     closeData: closeData,
-    DEFAULTS: DEFAULTS
+    DEFAULTS: DEFAULTS,
+    CONFIG_VERSION: CONFIG_VERSION
   };
 })();
 </script>

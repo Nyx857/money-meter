@@ -28,7 +28,7 @@ const at = (y, m, d, hh, mm = 0) => new Date(y, m - 1, d, hh, mm, 0, 0).getTime(
 const night = {
   salary: 12000, workDays: 21.75,
   workStart: '16:20', workEnd: '00:20',
-  lunchEnabled: false, lunchStart: '20:00', lunchEnd: '20:30',
+  breaks: [],
   workweek: [1, 2, 3, 4, 5],
   otStart: '00:20', otEnd: '02:20',
   otWeekday: 1.5, otWeekend: 2, otHoliday: 3,
@@ -38,7 +38,7 @@ const night = {
 const day = {
   salary: 12000, workDays: 21.75,
   workStart: '09:00', workEnd: '18:00',
-  lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00',
+  breaks: [{ start: '12:00', end: '13:00' }],
   workweek: [1, 2, 3, 4, 5],
   otStart: '18:00', otEnd: '20:00',
   otWeekday: 1.5, otWeekend: 2, otHoliday: 3,
@@ -137,9 +137,9 @@ const toMidnight = { ...day, workEnd: '00:00' };
 eq('09:00 → 24:00 是 15 小时', A.shiftDurationMin(toMidnight), 900);
 ok('也算跨零点', A.isOvernight(toMidnight) === true);
 eq('夜班配了 12:00–13:00 午休 → 自动忽略',
-   A.dailyWorkSec({ ...night, lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' }), 28800);
+   A.dailyWorkSec({ ...night, breaks: [{ start: '12:00', end: '13:00' }] }), 28800);
 eq('夜里 23:00–23:30 休息能正确扣掉',
-   A.dailyWorkSec({ ...night, lunchEnabled: true, lunchStart: '23:00', lunchEnd: '23:30' }), 27000);
+   A.dailyWorkSec({ ...night, breaks: [{ start: '23:00', end: '23:30' }] }), 27000);
 
 console.log('\n[11] 发薪日');
 let pd = A.nextPayday(night, at(2026, 11, 4, 10, 0));
@@ -168,7 +168,7 @@ console.log('\n[14] 新默认：5000 / 9:00–17:00 / 加班 17:00–21:00 / 休
 const dflt = {
   salary: 5000, workDays: 21.75,
   workStart: '09:00', workEnd: '17:00',
-  lunchEnabled: true, lunchStart: '17:30', lunchEnd: '18:00',
+  breaks: [{ start: '17:30', end: '18:00' }],
   workweek: [1, 2, 3, 4, 5],
   otStart: '17:00', otEnd: '21:00',
   otWeekday: 1.5, otWeekend: 2, otHoliday: 3,
@@ -194,10 +194,10 @@ d3 = A.computeTotals(dflt, dfltOT, at(2026, 11, 4, 18, 10));
 eq('18:10 = 70 分钟扣掉 30 分钟休息', d3.todayOT, 2400 * b2 * 1.5);
 
 console.log('\n[15] 休息压在班次/加班边界上');
-const straddle = { ...dflt, lunchStart: '16:30', lunchEnd: '17:30' };
+const straddle = { ...dflt, breaks: [{ start: '16:30', end: '17:30' }] };
 eq('休息跨过下班点，班次只算 7.5 小时', A.dailyWorkSec(straddle), 27000);
 eq('加班同时扣掉 17:00–17:30，净 3.5 小时', A.otNetMin(straddle), 210);
-const inShift = { ...dflt, lunchStart: '12:00', lunchEnd: '13:00' };
+const inShift = { ...dflt, breaks: [{ start: '12:00', end: '13:00' }] };
 eq('休息全在班次内 → 计薪 7 小时', A.dailyWorkSec(inShift), 25200);
 eq('此时加班不受影响（4 小时）', A.otNetMin(inShift), 240);
 
@@ -348,6 +348,58 @@ p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 }, dayFlags: { '20
 ok('导入时保留 holiday 并清掉冲突的 ot', p.dayFlags['2026-11-04'].holiday === true && !p.dayFlags['2026-11-04'].ot);
 p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 }, dayFlags: { '2026-11-07': { holiday: true, worked: true } } }));
 ok('导入时保留周末节假日上班', p.dayFlags['2026-11-07'].holiday === true && p.dayFlags['2026-11-07'].worked === true);
+
+console.log('\n[20] 多段休息');
+const twoBreaks = { ...day, breaks: [{ start: '12:00', end: '12:30' }, { start: '15:00', end: '15:30' }] };
+eq('9 小时班扣两段各 30 分钟 → 计薪 8 小时', A.dailyWorkSec(twoBreaks), 8 * 3600);
+eq('计薪区间切成 3 段', A.shiftSegments(twoBreaks).length, 3);
+ok('12:15 休息中', A.statusAt(twoBreaks, NOFLAGS, at(2026, 11, 4, 12, 15)).key === 'lunch');
+ok('15:15 休息中', A.statusAt(twoBreaks, NOFLAGS, at(2026, 11, 4, 15, 15)).key === 'lunch');
+ok('14:00 在岗中', A.statusAt(twoBreaks, NOFLAGS, at(2026, 11, 4, 14, 0)).key === 'working');
+eq('顺序颠倒不影响结果',
+   A.dailyWorkSec({ ...day, breaks: [{ start: '15:00', end: '15:30' }, { start: '12:00', end: '12:30' }] }), 8 * 3600);
+eq('重叠的休息只扣一次（并集 1.5 小时）',
+   A.dailyWorkSec({ ...day, breaks: [{ start: '12:00', end: '13:00' }, { start: '12:30', end: '13:30' }] }), 9 * 3600 - 5400);
+eq('休息在班次外 → 不扣',
+   A.dailyWorkSec({ ...day, breaks: [{ start: '20:00', end: '21:00' }] }), 9 * 3600);
+
+const nightTwo = { ...night, breaks: [{ start: '20:00', end: '20:30' }, { start: '23:00', end: '23:20' }] };
+eq('夜班两段休息 → 430 分钟', A.dailyWorkSec(nightTwo), 430 * 60);
+eq('夜班跨零点的休息（23:50–00:10）也扣',
+   A.dailyWorkSec({ ...night, breaks: [{ start: '23:50', end: '00:10' }] }), 460 * 60);
+
+const otTwo = { ...dflt, breaks: [{ start: '17:30', end: '18:00' }, { start: '19:00', end: '19:20' }] };
+eq('加班 4 小时扣两段 → 190 分钟', A.otNetMin(otTwo), 190);
+const t20 = A.computeTotals(otTwo, { '2026-11-04': { ot: true, mult: 1.5 } }, at(2026, 11, 4, 19, 30));
+eq('19:30 加班 = 150 − 30 − 20 分钟', t20.todayOT, 100 * 60 * b2 * 1.5, 0.001);
+
+p = A.normalizeCfg({ salary: 5000, lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' });
+ok('老配置（单段 lunch*）迁移成 breaks', p.breaks.length === 1
+  && p.breaks[0].start === '12:00' && p.breaks[0].end === '13:00', JSON.stringify(p.breaks));
+p = A.normalizeCfg({ salary: 5000, lunchEnabled: false, lunchStart: '12:00', lunchEnd: '13:00' });
+eq('老配置关掉休息 → 空数组', p.breaks.length, 0);
+p = A.normalizeCfg({ salary: 5000 });
+eq('没有休息信息 → 用默认一段', p.breaks.length, 1);
+p = A.normalizeCfg({ salary: 5000, breaks: [
+  { start: '12:00', end: '13:00' },
+  { start: '12:00', end: '12:00' },
+  { start: 'x', end: '13:00' },
+  null
+] });
+eq('非法休息被丢掉', p.breaks.length, 1);
+p = A.normalizeCfg({ salary: 5000, breaks: Array(9).fill({ start: '12:00', end: '13:00' }) });
+eq('最多保留 6 段', p.breaks.length, 6);
+p = A.normalizeCfg({ salary: 5000 });
+p.breaks.push({ start: '20:00', end: '20:30' });
+eq('改 cfg.breaks 不会污染 DEFAULTS', A.DEFAULTS.breaks.length, 1);
+ok('lenient 读取允许月薪 0', A.normalizeCfg({ salary: 0 }, true).salary === 0);
+ok('strict 导入拒绝月薪 0', A.normalizeCfg({ salary: 0 }) === null);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, breaks: [{ start: '12:00', end: '13:00' }, { start: '18:00', end: '18:30' }] } }));
+ok('带 breaks 的备份能导入', p.ok && p.cfg.breaks.length === 2);
+p = A.decodeBackup(JSON.stringify({ v: 4, cfg: { salary: 7000, breaks: [{ start: '12:00', end: '13:00' }] } }));
+ok('v4 备份能导入', p.ok && p.version === 4 && p.cfg.salary === 7000);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, lunchEnabled: true, lunchStart: '12:00', lunchEnd: '13:00' } }));
+ok('老备份导入时自动迁移休息', p.ok && p.cfg.breaks.length === 1);
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);
