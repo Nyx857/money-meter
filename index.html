@@ -417,7 +417,53 @@
   }
   .add-break:active{background:rgba(255,255,255,.045);color:var(--muted)}
   .add-break[hidden]{display:none}
+  .seg{
+    display:flex;gap:4px;padding:3px;margin-bottom:10px;
+    border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--line);
+  }
+  .seg button{
+    flex:1;height:34px;border:1px solid transparent;border-radius:9px;
+    background:transparent;color:var(--dim);font-family:inherit;
+    font-size:12.5px;font-weight:600;cursor:pointer;transition:.16s;
+  }
+  .seg button.on{
+    background:rgba(247,201,72,.15);border-color:rgba(247,201,72,.32);color:#ffe2a0;
+  }
+  .cycle-box{display:flex;flex-direction:column;gap:10px}
+  .cycle-box[hidden]{display:none}
+  .cycle-cell{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:5px;
+    height:44px;padding:0 10px;border-radius:12px;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.075);
+  }
+  .cycle-cell span{font-size:12.5px;color:var(--muted);flex:none}
+  .cycle-cell input[type="number"]{
+    width:100%;height:38px;padding:0;border:0;border-radius:0;
+    background:transparent;text-align:center;font-size:16px;
+  }
+  .cycle-cell input[type="number"]:focus{background:transparent;border:0}
+  .cycle-date{display:flex;flex-direction:column;gap:7px}
+  .cycle-date label{font-size:11px;color:var(--muted);letter-spacing:.02em}
+  input[type="date"]{
+    width:100%;height:44px;padding:0 12px;border-radius:12px;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.075);
+    color:var(--text);font-family:inherit;font-size:14px;outline:none;
+    color-scheme:dark;transition:.18s;
+  }
+  input[type="date"]:focus{border-color:rgba(247,201,72,.45);background:rgba(247,201,72,.06)}
+  .cycle-preview{
+    font-size:10.5px;color:#8f99a6;line-height:1.85;
+    font-variant-numeric:tabular-nums;
+  }
+  .cycle-preview b{color:#ffd76a;font-weight:600}
+  .cycle-preview .rest{color:#5d6673}
+  .link-btn{
+    border:0;background:none;padding:0 2px;color:#e0c98a;
+    font-family:inherit;font-size:10.5px;text-decoration:underline;
+    text-underline-offset:2px;cursor:pointer;
+  }
   .week{display:flex;gap:6px}
+  .week[hidden]{display:none}
   .week button{
     flex:1;height:38px;border-radius:11px;border:1px solid var(--line);
     background:rgba(255,255,255,.03);color:var(--dim);
@@ -501,6 +547,23 @@
   .log-empty[hidden]{display:none}
   .log-older{font-size:10.5px;color:#4b545f;text-align:center;padding:12px 0 4px;line-height:1.6}
   .log-older[hidden]{display:none}
+
+  /* ---------- 更新日志 ---------- */
+  .about-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+  .about-head b{font-size:13px;font-weight:650;letter-spacing:.01em}
+  .about-head span{font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .changelog{display:flex;flex-direction:column;gap:8px}
+  .cl-item{
+    padding:10px 12px;border-radius:12px;
+    background:rgba(255,255,255,.026);border:1px solid rgba(255,255,255,.06);
+  }
+  .cl-item.now{border-color:rgba(247,201,72,.22);background:rgba(247,201,72,.05)}
+  .cl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}
+  .cl-head b{font-size:12px;color:#e0c98a;font-weight:650}
+  .cl-item.now .cl-head b{color:#ffd76a}
+  .cl-head span{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .cl-item ul{margin:0;padding-left:14px;color:#8792a0;font-size:10.5px;line-height:1.8}
+  .cl-item li::marker{color:#4b545f}
 
   /* ---------- 备份 / 恢复 ---------- */
   .data-row{display:flex;gap:9px}
@@ -651,7 +714,7 @@
     </button>
   </div>
 
-  <div class="foot">数据只存在这台设备上 · 按理想出勤估算</div>
+  <div class="foot">数据只存在这台设备上 · 按理想出勤估算 · <span id="footVersion">—</span></div>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -697,7 +760,8 @@
     <div class="field">
       <label for="inWorkDays">月计薪天数</label>
       <input type="number" id="inWorkDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
-      <div class="hint">法定平均值 21.75，按实际工作日可以填 22。</div>
+      <div class="hint" id="daysHint">法定平均值 21.75，按实际工作日可以填 22。</div>
+      <div class="hint" id="cycleDaysHint" hidden>上 <b id="cycleHintWork">4</b> 休 <b id="cycleHintRest">1</b> · 平均每月 <b id="cycleHintAvg">24.33</b> 个班 <button type="button" class="link-btn" id="useCycleDays">按这个填</button></div>
     </div>
 
     <div class="section">上班时间</div>
@@ -729,7 +793,11 @@
     </div>
 
     <div class="field">
-      <label>每周哪几天上班</label>
+      <label>上班怎么排</label>
+      <div class="seg" id="scheduleSeg">
+        <button type="button" data-sched="week">按星期</button>
+        <button type="button" data-sched="cycle">上几休几</button>
+      </div>
       <div class="week" id="inWeek">
         <button type="button" data-d="1">一</button>
         <button type="button" data-d="2">二</button>
@@ -739,6 +807,26 @@
         <button type="button" data-d="6">六</button>
         <button type="button" data-d="0">日</button>
       </div>
+      <div class="cycle-box" id="cycleBox" hidden>
+        <div class="row">
+          <div class="cycle-cell">
+            <span>上</span>
+            <input type="number" id="inCycleWork" min="1" max="31" step="1" inputmode="numeric" aria-label="连续上几天">
+            <span>天</span>
+          </div>
+          <div class="cycle-cell">
+            <span>休</span>
+            <input type="number" id="inCycleRest" min="0" max="31" step="1" inputmode="numeric" aria-label="连续休几天">
+            <span>天</span>
+          </div>
+        </div>
+        <div class="cycle-date">
+          <label for="inCycleStart">从哪天开始（这天算第 1 个上班日）</label>
+          <input type="date" id="inCycleStart">
+        </div>
+        <div class="cycle-preview" id="cyclePreview"></div>
+      </div>
+      <div class="hint">上四休一、做一休一这类轮班选「上几休几」，每周固定的就选「按星期」。</div>
     </div>
 
     <div class="section">加班</div>
@@ -827,6 +915,16 @@
       </div>
       <div class="hint">换手机、删主屏图标、清缓存之前先导一份，粘到备忘录里存着。</div>
     </div>
+
+    <div class="section">关于</div>
+
+    <div class="field">
+      <div class="about-head">
+        <b>每秒进账</b>
+        <span id="appVersion">—</span>
+      </div>
+      <div class="changelog" id="changelogList"></div>
+    </div>
   </div>
 <div class="sheet-foot">
     <button class="save" id="saveBtn">保存</button>
@@ -904,6 +1002,10 @@
     workStart: "09:00",
     workEnd: "17:00",
     breaks: [{ start: "17:30", end: "18:00" }],
+    schedule: "week",          // week = 按星期；cycle = 上 N 休 M
+    cycleWork: 4,
+    cycleRest: 1,
+    cycleStart: "2026-01-05",  // 循环的第 1 个上班日（只在 cycle 模式用到）
     workweek: [1, 2, 3, 4, 5],
     otStart: "17:00",
     otEnd: "21:00",
@@ -957,6 +1059,30 @@
     return defaultCfg().breaks;
   }
 
+  // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
+  var APP_VERSION = "1.3.0";
+  var CHANGELOG = [
+    { version: "1.3.0", date: "2026-11-05", items: [
+      "新增「上几休几」循环排班：上四休一、做一休一、上二休二都能排",
+      "循环排班能按平均班数一键折算月计薪天数",
+      "设置里新增更新日志，能查到每个版本改了什么"
+    ] },
+    { version: "1.2.0", date: "2026-11-05", items: [
+      "配置可以导出 / 导入，换手机、清缓存不用重填",
+      "法定节假日整班按 3× 计，工作日一键标记",
+      "休息时段支持多段，长夜班能同时扣晚饭和夜宵",
+      "新增记录面板：补录漏掉的加班 / 请假，删掉记错的那天"
+    ] },
+    { version: "1.1.0", date: "2026-11-04", items: [
+      "上班天数只算已经开工的班次",
+      "去掉「上班 N 天挣 M 天」这种跨口径对比"
+    ] },
+    { version: "1.0.0", date: "2026-11-04", items: [
+      "班次计薪、跨零点夜班、加班倍率",
+      "本月统计与 4% 法则自由视图"
+    ] }
+  ];
+
   function pad2(n){ return (n < 10 ? "0" : "") + n; }
 
   function hmToMin(s){
@@ -996,7 +1122,51 @@
     return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
   }
 
+  function isValidDateKey(k){
+    if (typeof k !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(k)) return false;
+    var t = new Date(k + "T00:00:00").getTime();
+    return isFinite(t) && dayKey(t) === k;
+  }
+
+  // 用 UTC 天数编号算循环位置，避开夏令时导致的 23/25 小时
+  function dayNumber(ts){
+    var d = new Date(ts);
+    return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS);
+  }
+
+  function isCycleSchedule(cfg){
+    return !!(cfg && cfg.schedule === "cycle");
+  }
+
+  // 上 N 休 M 的参数，统一夹到合理范围
+  function cycleParts(cfg){
+    var w = Math.round(Number(cfg && cfg.cycleWork));
+    var r = Math.round(Number(cfg && cfg.cycleRest));
+    if (!isFinite(w) || w < 1) w = 4;
+    if (!isFinite(r) || r < 0) r = 1;
+    w = Math.max(1, Math.min(31, w));
+    r = Math.max(0, Math.min(31, r));
+    return { work: w, rest: r, len: w + r };
+  }
+
+  // 循环排班：从 cycleStart 那天算第 1 个上班日，往后以 work+rest 为一轮
+  function isCycleWorkday(cfg, ts){
+    var p = cycleParts(cfg);
+    var anchor = new Date((cfg && cfg.cycleStart) + "T00:00:00").getTime();
+    if (!isFinite(anchor)) anchor = startOfDay(ts);
+    var diff = dayNumber(ts) - dayNumber(anchor);
+    var idx = ((diff % p.len) + p.len) % p.len;
+    return idx < p.work;
+  }
+
+  // 上 N 休 M 平均每月上几天班（用来折算月计薪天数）
+  function cycleAvgDays(cfg){
+    var p = cycleParts(cfg);
+    return Math.round((p.work / p.len) * (365 / 12) * 100) / 100;
+  }
+
   function isWorkdayAt(cfg, ts){
+    if (isCycleSchedule(cfg)) return isCycleWorkday(cfg, ts);
     var ww = Array.isArray(cfg.workweek) ? cfg.workweek : [1, 2, 3, 4, 5];
     var day = new Date(ts).getDay();
     for (var i = 0; i < ww.length; i++) if (Number(ww[i]) === day) return true;
@@ -1330,7 +1500,8 @@
     }
     var range = ot ? otRange(cfg, dayTs, ot) : null;
     if (range && now >= range[0] && now < range[1]){
-      return { key: "ot", label: workday ? "加班中" : "周末加班中", mult: ot.mult, dayTs: dayTs, range: range };
+      var otLbl = workday ? "加班中" : (isCycleSchedule(cfg) ? "休息日加班中" : "周末加班中");
+      return { key: "ot", label: otLbl, mult: ot.mult, dayTs: dayTs, range: range };
     }
 
     var s = shiftStartTs(cfg, dayTs), e = shiftEndTs(cfg, dayTs);
@@ -1345,6 +1516,7 @@
         var lbl;
         if (holiday) lbl = (overnight && lateNight) ? "节假日夜班中" : "节假日上班";
         else if (workday) lbl = (overnight && lateNight) ? "夜班中" : "在岗中";
+        else if (isCycleSchedule(cfg)) lbl = lateNight ? "休息日夜班中" : "休息日上班中";
         else lbl = lateNight ? "周末夜班中" : "周末上班中";
         return { key: holiday ? "holiday" : "working", label: lbl, mult: segMult, dayTs: dayTs };
       }
@@ -1455,6 +1627,12 @@
     c.workStart = timeOr(c.workStart, DEFAULTS.workStart);
     c.workEnd = timeOr(c.workEnd, DEFAULTS.workEnd);
     c.breaks = breaksFromCfg(raw);
+    c.schedule = c.schedule === "cycle" ? "cycle" : "week";
+    var cw = Math.round(Number(c.cycleWork));
+    var cr = Math.round(Number(c.cycleRest));
+    c.cycleWork = isFinite(cw) ? Math.max(1, Math.min(31, cw)) : DEFAULTS.cycleWork;
+    c.cycleRest = isFinite(cr) ? Math.max(0, Math.min(31, cr)) : DEFAULTS.cycleRest;
+    c.cycleStart = isValidDateKey(c.cycleStart) ? c.cycleStart : DEFAULTS.cycleStart;
 
     var ww = [];
     if (Array.isArray(c.workweek)){
@@ -1654,7 +1832,13 @@
     inSalary: $("inSalary"), inWorkDays: $("inWorkDays"),
     inStartH: $("inStartH"), inStartM: $("inStartM"), inEndH: $("inEndH"), inEndM: $("inEndM"),
     breakList: $("breakList"), breakEmpty: $("breakEmpty"), addBreak: $("addBreak"),
-    inWeek: $("inWeek"),
+    inWeek: $("inWeek"), scheduleSeg: $("scheduleSeg"),
+    cycleBox: $("cycleBox"), inCycleWork: $("inCycleWork"), inCycleRest: $("inCycleRest"),
+    inCycleStart: $("inCycleStart"), cyclePreview: $("cyclePreview"),
+    daysHint: $("daysHint"), cycleDaysHint: $("cycleDaysHint"),
+    cycleHintWork: $("cycleHintWork"), cycleHintRest: $("cycleHintRest"), cycleHintAvg: $("cycleHintAvg"),
+    useCycleDays: $("useCycleDays"),
+    appVersion: $("appVersion"), changelogList: $("changelogList"), footVersion: $("footVersion"),
     inOtStartH: $("inOtStartH"), inOtStartM: $("inOtStartM"),
     inOtEndH: $("inOtEndH"), inOtEndM: $("inOtEndM"),
     otHintIn: $("otHintIn"),
@@ -1776,6 +1960,19 @@
     return out;
   }
 
+  // 当前选中的排班方式（设置面板里的分段按钮）
+  var scheduleMode = "week";
+
+  function setScheduleMode(mode){
+    scheduleMode = mode === "cycle" ? "cycle" : "week";
+    var btns = el.scheduleSeg.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++){
+      btns[i].classList.toggle("on", btns[i].getAttribute("data-sched") === scheduleMode);
+    }
+    el.inWeek.hidden = scheduleMode === "cycle";
+    el.cycleBox.hidden = scheduleMode !== "cycle";
+  }
+
   function formCfg(){
     return {
       salary: parseFloat(el.inSalary.value) || 0,
@@ -1783,6 +1980,10 @@
       workStart: getTimePair(el.inStartH, el.inStartM),
       workEnd: getTimePair(el.inEndH, el.inEndM),
       breaks: collectBreaks(),
+      schedule: scheduleMode,
+      cycleWork: Math.max(1, Math.min(31, Math.round(parseFloat(el.inCycleWork.value) || 4))),
+      cycleRest: Math.max(0, Math.min(31, Math.round(parseFloat(el.inCycleRest.value) || 0))),
+      cycleStart: isValidDateKey(el.inCycleStart.value) ? el.inCycleStart.value : dayKey(Date.now()),
       workweek: [],
       otStart: getTimePair(el.inOtStartH, el.inOtStartM),
       otEnd: getTimePair(el.inOtEndH, el.inOtEndM),
@@ -1879,6 +2080,47 @@
     setText(el.pvHourSub, base > 0 ? "日薪 ¥" + fmt2(base * dailyWorkSec(cfg)) : "—");
     setText(el.pvOT, otNet > 0 ? fmtDur(otNet) : "—");
     setText(el.pvOTSub, otNet > 0 && base > 0 ? "+¥" + fmt2(otPay) + "（×" + multText(mult) + "）" : "—");
+
+    // 排班方式：循环模式显示上 N 休 M 的预览 + 月计薪天数建议
+    var cycleMode = cfg.schedule === "cycle";
+    el.inWeek.hidden = cycleMode;
+    el.cycleBox.hidden = !cycleMode;
+    el.daysHint.hidden = cycleMode;
+    el.cycleDaysHint.hidden = !cycleMode;
+    if (cycleMode){
+      var cp = cycleParts(cfg);
+      var avg = cycleAvgDays(cfg);
+      setText(el.cycleHintWork, String(cp.work));
+      setText(el.cycleHintRest, String(cp.rest));
+      setText(el.cycleHintAvg, String(avg));
+      var start = startOfDay(Date.now()), bits = [];
+      for (var ci = 0; ci < 8; ci++){
+        var dts = addDays(start, ci);
+        var dd = new Date(dts);
+        var on = isCycleWorkday(cfg, dts);
+        bits.push('<span class="' + (on ? "" : "rest") + '">'
+          + (ci === 0 ? "今天 " : "") + (dd.getMonth() + 1) + "/" + dd.getDate()
+          + (on ? " 上" : " 休") + '</span>');
+      }
+      el.cyclePreview.innerHTML = "接下来：" + bits.join(" · ")
+        + "<br>本月 <b>" + monthWorkdayCount(cfg, Date.now()) + "</b> 个班"
+        + " · 平均每月 <b>" + avg + "</b> 个班";
+    }
+  }
+
+  function renderChangelog(){
+    if (el.appVersion) el.appVersion.textContent = "v" + APP_VERSION + " · " + CHANGELOG[0].date + " 更新";
+    if (el.footVersion) el.footVersion.textContent = "v" + APP_VERSION;
+    if (!el.changelogList) return;
+    var html = "";
+    for (var i = 0; i < CHANGELOG.length; i++){
+      var c = CHANGELOG[i];
+      html += '<div class="cl-item' + (c.version === APP_VERSION ? " now" : "") + '">'
+        + '<div class="cl-head"><b>v' + c.version + '</b><span>' + c.date + '</span></div><ul>';
+      for (var j = 0; j < c.items.length; j++) html += "<li>" + c.items[j] + "</li>";
+      html += "</ul></div>";
+    }
+    el.changelogList.innerHTML = html;
   }
 
   /* ==========================================================
@@ -2404,7 +2646,7 @@
           "⚡ 我的时间单价 · 月薪 ¥" + fmt0(cfg.salary),
           "在岗 ¥" + fmtRate(t.base) + "/秒 · ¥" + fmtRate(t.base * 3600) + "/小时",
           "加班 ¥" + fmtRate(t.base * wd) + "/秒（×" + multText(wd) + "）",
-          "周末 ¥" + fmtRate(t.base * we) + "/秒（×" + multText(we) + "）"
+          "休息日 ¥" + fmtRate(t.base * we) + "/秒（×" + multText(we) + "）"
         ].join("\n")
       };
     }
@@ -2503,10 +2745,14 @@
     el.inSaved.value = c.saved;
     el.inReturn.value = c.returnRate;
     lastWorkEnd = c.workEnd;
-    var days = c.workweek || [1, 2, 3, 4, 5];
+    var days = (c.workweek && c.workweek.length) ? c.workweek : [1, 2, 3, 4, 5];
     el.inWeek.querySelectorAll("button").forEach(function(b){
       b.classList.toggle("on", days.indexOf(Number(b.getAttribute("data-d"))) >= 0);
     });
+    setScheduleMode(c.schedule === "cycle" ? "cycle" : "week");
+    el.inCycleWork.value = c.cycleWork || 4;
+    el.inCycleRest.value = (c.cycleRest === 0 || c.cycleRest) ? c.cycleRest : 1;
+    el.inCycleStart.value = isValidDateKey(c.cycleStart) ? c.cycleStart : dayKey(Date.now());
     el.introCard.hidden = !state.firstRun;
     updatePreview();
     el.sheet.classList.add("open");
@@ -2547,6 +2793,30 @@
     if (btn) btn.classList.toggle("on");
   });
 
+  el.scheduleSeg.addEventListener("click", function(ev){
+    var btn = ev.target.closest ? ev.target.closest("button") : null;
+    if (!btn) return;
+    var was = scheduleMode;
+    setScheduleMode(btn.getAttribute("data-sched"));
+    if (was !== "cycle" && scheduleMode === "cycle"){
+      el.inCycleStart.value = dayKey(Date.now());
+    }
+    updatePreview();
+  });
+
+  [el.inCycleWork, el.inCycleRest, el.inCycleStart].forEach(function(x){
+    if (!x) return;
+    x.addEventListener("change", updatePreview);
+    x.addEventListener("input", updatePreview);
+  });
+
+  el.useCycleDays.addEventListener("click", function(){
+    var avg = cycleAvgDays(formCfg());
+    el.inWorkDays.value = avg;
+    updatePreview();
+    toast("月计薪天数按排班填了 " + avg + "，记得点保存");
+  });
+
   [el.inEndH, el.inEndM].forEach(function(x){
     if (x) x.addEventListener("change", syncOvertime);
   });
@@ -2562,8 +2832,15 @@
     if (!(dailyWorkSec(cfg) > 0)){ toast("休息时段把班次占满了，改一下时间"); return; }
     var days = [];
     el.inWeek.querySelectorAll("button.on").forEach(function(b){ days.push(Number(b.getAttribute("data-d"))); });
-    if (!days.length){ toast("至少选一个上班日"); return; }
-    cfg.workweek = days;
+    if (cfg.schedule === "cycle"){
+      if (!isValidDateKey(el.inCycleStart.value)){ toast("选一下循环从哪天开始"); return; }
+      cfg.cycleStart = el.inCycleStart.value;
+      if (!(cfg.cycleWork >= 1)){ toast("「上几天」至少填 1"); return; }
+      cfg.workweek = days.length ? days : [1, 2, 3, 4, 5];
+    } else {
+      if (!days.length){ toast("至少选一个上班日"); return; }
+      cfg.workweek = days;
+    }
     cfg.otWeekday = Math.max(1, cfg.otWeekday);
     cfg.otWeekend = Math.max(1, cfg.otWeekend);
     cfg.otHoliday = Math.max(1, cfg.otHoliday);
@@ -2804,6 +3081,7 @@
   /* ---------- 启动 ---------- */
   initSelects();
   load();
+  renderChangelog();
   document.querySelectorAll(".tabs button").forEach(function(b){
     b.setAttribute("aria-selected", b.getAttribute("data-mode") === state.mode ? "true" : "false");
   });
@@ -2853,7 +3131,16 @@
     recordFlagFor: recordFlagFor,
     recentRecordKeys: recentRecordKeys,
     openLog: openLog,
-    closeLog: closeLog
+    closeLog: closeLog,
+    isWorkdayAt: isWorkdayAt,
+    isCycleWorkday: isCycleWorkday,
+    cycleParts: cycleParts,
+    cycleAvgDays: cycleAvgDays,
+    isValidDateKey: isValidDateKey,
+    APP_VERSION: APP_VERSION,
+    CHANGELOG: CHANGELOG,
+    renderChangelog: renderChangelog,
+    setScheduleMode: setScheduleMode
   };
 })();
 </script>

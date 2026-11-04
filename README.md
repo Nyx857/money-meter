@@ -18,8 +18,10 @@ Most "salary tickers" assume your rate never changes. In reality overtime pays 1
 - **Scheduled overtime** — set the window once (e.g. 17:00–21:00), then one tap enables it for the day
 - **Breaks are unpaid** — one or more break windows are deducted inside and outside the shift (4h → 3.5h by default)
 - **Day off / weekend work / statutory holiday** — one tap for a leave day, a double-pay rest day, or a 3× holiday shift
+- **Cycle schedules** — "N days on, M days off" (4-on-1-off, alternating days) with a date anchor and a next-8-days preview
 - **Fix past days** — a record panel lists the last 30 days; backfill a missed overtime or delete a wrong entry
 - **Backup** — export / import the whole config and day flags as JSON, so a cache wipe is not data loss
+- **Built-in changelog** — version, date and notes for every release, right in Settings
 - **Month view** — money, days worked, overtime days, average per shift
 - **Freedom view** — 4% rule target, years until you can stop, and the two levers: save the overtime, spend less
 
@@ -44,7 +46,7 @@ On a phone: use the same Wi-Fi and run `./start.command` (macOS). It prints a QR
 - Overtime only counts time **outside** the regular shift, minus breaks
 - Freedom line = monthly expenses × 12 × 25 (the 4% rule); compounding at your assumed real return
 
-Tests: `node tests/core.test.mjs` (199 assertions covering overnight shifts, multi-break deduction, holidays, import validation/migration, the 4% rule and edge cases).
+Tests: `node tests/core.test.mjs` (224 assertions covering overnight shifts, multi-break deduction, holidays, cycle schedules, import validation/migration, the 4% rule and edge cases).
 
 ## License
 

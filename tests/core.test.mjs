@@ -11,7 +11,8 @@ const A = new Function(
   'shiftDayFor,shiftMoney,computeTotals,statusAt,otRange,otSec,autoMult,nextPayday,isWorkdayAt,' +
   'isOvernight,startOfDay,dayKey,fmt2,fmtRate,splitAmount,hmToMin,minToHm,fmtDur,otNetMin,monthWorkdayCount,fiTarget,monthsToFI,fmtWan,fmtMonths,' +
   'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS,' +
-  'recordStatus,recordFlagFor,recentRecordKeys};'
+  'recordStatus,recordFlagFor,recentRecordKeys,' +
+  'isCycleWorkday,cycleParts,cycleAvgDays,isValidDateKey,APP_VERSION,CHANGELOG};'
 )();
 
 let pass = 0, fail = 0;
@@ -449,6 +450,49 @@ eq('无效标记不计入', rr.keys.length, 2);
 eq('更早的单独计数', rr.older, 1);
 rr = A.recentRecordKeys(dflt, flags21, at(2026, 11, 5, 10, 0), 2);
 ok('窗口 2 天只剩 11/04', rr.keys.length === 1 && rr.keys[0] === '2026-11-04');
+
+console.log('\n[22] 上 N 休 M 循环排班');
+const cyc = { ...dflt, schedule: 'cycle', cycleWork: 4, cycleRest: 1, cycleStart: '2026-11-02' };
+ok('锚点当天算第 1 个上班日', A.isWorkdayAt(cyc, A.startOfDay(at(2026, 11, 2, 0, 0))));
+ok('第 4 天还上班', A.isWorkdayAt(cyc, at(2026, 11, 5, 0, 0)));
+ok('第 5 天休息', !A.isWorkdayAt(cyc, at(2026, 11, 6, 0, 0)));
+ok('下一轮第 1 天又上班', A.isWorkdayAt(cyc, at(2026, 11, 7, 0, 0)));
+ok('锚点之前的日期也能倒推', !A.isWorkdayAt(cyc, at(2026, 11, 1, 0, 0)));
+eq('11 月按上四休一共有 24 个班', A.monthWorkdayCount(cyc, at(2026, 11, 5, 10, 0)), 24);
+eq('上四休一平均每月 24.33 天', A.cycleAvgDays(cyc), 24.33);
+const ct = A.computeTotals(cyc, {}, at(2026, 11, 5, 10, 0));
+eq('循环排班本月已上班 4 天', ct.monthWorkDays, 4);
+eq('循环排班照样算钱', ct.month, d2 * 3 + 3600 * b2, 0.001);
+
+const alt = { ...dflt, schedule: 'cycle', cycleWork: 1, cycleRest: 1, cycleStart: '2026-11-02' };
+ok('做一休一：11/2 上', A.isWorkdayAt(alt, at(2026, 11, 2, 0, 0)));
+ok('做一休一：11/3 休', !A.isWorkdayAt(alt, at(2026, 11, 3, 0, 0)));
+ok('做一休一：11/4 上', A.isWorkdayAt(alt, at(2026, 11, 4, 0, 0)));
+eq('做一休一平均每月 15.21 天', A.cycleAvgDays(alt), 15.21);
+const noRest = { ...dflt, schedule: 'cycle', cycleWork: 2, cycleRest: 0, cycleStart: '2026-11-02' };
+ok('休 0 天 → 每天都是上班日', A.isWorkdayAt(noRest, at(2026, 11, 7, 0, 0)));
+
+const cycRestOT = { '2026-11-06': { worked: true, mult: 2 } };
+eq('循环休息日上班整班 ×2', A.computeTotals(cyc, cycRestOT, at(2026, 11, 6, 20, 0)).today, d2 * 2, 0.001);
+ok('循环休息日文案不叫「周末」', A.statusAt(cyc, cycRestOT, at(2026, 11, 6, 10, 0)).label === '休息日上班中');
+ok('按星期模式仍然是「周末上班中」', A.statusAt(dflt, { '2026-11-07': { worked: true, mult: 2 } }, at(2026, 11, 7, 10, 0)).label === '周末上班中');
+
+p = A.normalizeCfg({ salary: 5000, schedule: 'cycle', cycleWork: 4, cycleRest: 1, cycleStart: '2026-11-02' });
+ok('导入保留循环排班', p.schedule === 'cycle' && p.cycleWork === 4 && p.cycleRest === 1 && p.cycleStart === '2026-11-02');
+p = A.normalizeCfg({ salary: 5000, schedule: 'cycle', cycleWork: 99, cycleRest: -3, cycleStart: '2026-02-31' });
+ok('循环参数越界被夹取、坏日期回退', p.cycleWork === 31 && p.cycleRest === 0 && p.cycleStart === A.DEFAULTS.cycleStart);
+p = A.normalizeCfg({ salary: 5000 });
+ok('默认仍是按星期', p.schedule === 'week', p.schedule);
+ok('isValidDateKey 认 2 月 30 为假', !A.isValidDateKey('2026-02-30'));
+ok('isValidDateKey 认闰日', A.isValidDateKey('2024-02-29'));
+
+console.log('\n[23] 更新日志');
+ok('当前版本与日志第一条一致', A.APP_VERSION === A.CHANGELOG[0].version, A.APP_VERSION + ' vs ' + A.CHANGELOG[0].version);
+ok('日志从新到旧', A.CHANGELOG[0].version === '1.3.0' && A.CHANGELOG[A.CHANGELOG.length - 1].version === '1.0.0');
+ok('每条都有版本号 / 日期 / 内容', A.CHANGELOG.every(function(c){
+  return /^\d+\.\d+\.\d+$/.test(c.version) && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+    && Array.isArray(c.items) && c.items.length > 0;
+}));
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);

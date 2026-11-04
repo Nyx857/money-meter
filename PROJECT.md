@@ -6,12 +6,12 @@
 
 ## 1. 一句话
 
-月薪 → 每秒进账的实时看板，按**班次**计（跨零点算同一班），支持预设加班时段与倍率、法定节假日 3×、多段不计薪休息、按天补录记录、配置导出/导入，外加一个 4% 法则的「自由」视图。单文件网页，无依赖无构建。
+月薪 → 每秒进账的实时看板，按**班次**计（跨零点算同一班），支持预设加班时段与倍率、法定节假日 3×、多段不计薪休息、上 N 休 M 循环排班、按天补录记录、配置导出/导入，外加一个 4% 法则的「自由」视图。单文件网页，无依赖无构建。
 
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.2**
+- 当前版本：**v1.3**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「关于」直接渲染）
 
 ## 2. 技术形态
 
@@ -36,7 +36,7 @@ shots/              文档截图（不影响线上页面）
 start.command       macOS 本地起服务 + 终端二维码（手机同 Wi-Fi 调试用）
 tools/qr.swift      终端二维码生成（start.command 调用）
 tools/shot.swift    WKWebView 真渲染截图 + 控制台探针（自检用）
-tests/core.test.mjs 计薪内核单元测试（199 项）
+tests/core.test.mjs 计薪内核单元测试（224 项）
 ```
 
 ## 4. 代码结构（都在 index.html 的单个 `<script>` 里）
@@ -49,7 +49,9 @@ DOM 引用  → el = {...}
 render()  → 每帧一次（rAF），按 state.mode 分支
 交互      → 加班/不上班/节假日按钮、倍率 chips、tab、分享、设置面板
 记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）
+排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
+版本      → APP_VERSION + CHANGELOG → renderChangelog()
 ```
 
 **`CORE:START/END` 两个注释标记不能删**，测试靠它切出代码块。
@@ -67,6 +69,9 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 9. **导入一律走校验**：`decodeBackup()` 负责 JSON 解析、字段白名单、数值夹取、日期合法性、`off` 互斥、老版本 `lunch*` → `breaks` 迁移。不要在 UI 里直接 `Object.assign(state.cfg, 粘贴对象)`。
 10. **多段休息是唯一形态**：`cfg.breaks` 数组，旧的 `lunchEnabled/lunchStart/lunchEnd` 只在 `breaksFromCfg()` 迁移时出现，不要在新代码里读。
 11. **记录补录要跟班次类型对得上**：工作日才能补加班/请假，休息日才能补"休息日上班"，周末补节假日自动带 `worked`。
+12. **排班只走 `isWorkdayAt()`**：`cfg.schedule` 是 `week` 时看 `workweek`，是 `cycle` 时看 `cycleWork/cycleRest/cycleStart`。月度统计、状态、记录校验都调用它，不要各自判断星期。
+13. **循环位置用天数编号算**：`dayNumber()` 取 UTC 年月日，避免夏令时让某天变 23/25 小时；`((diff % len) + len) % len` 处理锚点之前的日期。
+14. **发版要改两处**：`APP_VERSION` 和 `CHANGELOG` 顶部（版本号 / 日期 / 内容）。设置里的更新日志直接渲染这个数组，不要另写一份 HTML。
 
 ## 6. 数据结构
 
@@ -77,7 +82,10 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 | salary / workDays | 月薪 / 月计薪天数 | 5000 / 21.75 |
 | workStart / workEnd | 上班 / 下班（"HH:MM"，end ≤ start 即跨零点） | 09:00 / 17:00 |
 | breaks | 不计薪休息，数组，最多 6 段；可跨零点 | `[{start:"17:30", end:"18:00"}]` |
-| workweek | 上班星期，`getDay()` 数字数组（0=周日） | [1,2,3,4,5] |
+| schedule | 排班方式：`week` 按星期 / `cycle` 上 N 休 M | "week" |
+| workweek | 按星期模式下上班的星期，`getDay()` 数字数组（0=周日） | [1,2,3,4,5] |
+| cycleWork / cycleRest | 上几天 / 休几天（cycle 模式） | 4 / 1 |
+| cycleStart | 循环起始日 `YYYY-MM-DD`，这天算第 1 个上班日 | "2026-01-05"（UI 切到 cycle 时默认今天） |
 | otStart / otEnd | 固定加班时段 | 17:00 / 21:00 |
 | otWeekday / otWeekend / otHoliday | 倍率 | 1.5 / 2 / 3 |
 | payday | 发薪日 1–31 | 15 |
@@ -106,6 +114,9 @@ node tests/core.test.mjs
 
 # 改 cfg 数据结构时：迁移写进 normalizeCfg()/breaksFromCfg()，
 # 并在 tests 里补「老配置/老备份仍能读」的用例；localStorage key 不要轻易升版本。
+
+# 发版时：改 APP_VERSION、在 CHANGELOG 顶部加一条（版本号 / 日期 / 内容），
+# 然后同步 README 与 PROJECT 的版本号和测试数。
 
 # 3. 视觉/交互自检（可选但推荐）：真渲染截图 + 控制台探针
 python3 -m http.server 8782 --bind 127.0.0.1 &
@@ -144,6 +155,9 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 新弹层盖住 toast | 记录面板里点添加，看不到提示 | 层级：设置 50 < 记录 60/61 < 备份弹层 70 < toast 80 |
 | 导入后设置面板还是旧值 | 再点保存把导进来的配置覆盖回去 | 导入成功后 `closeSheet()`，下次打开重新读 `state.cfg` |
 | 老配置没有 breaks | 升级后休息时段消失 | `load()` 走 `normalizeCfg(cfg, true)`，`breaksFromCfg()` 把 `lunch*` 转成数组；已在 WKWebView 真环境验证 |
+| 循环模式切回「按星期」后全空 | 保存时提示"至少选一个上班日" | 保存时始终收集星期按钮；`openSheet()` 对空 `workweek` 回落到周一到周五 |
+| 循环预览相位不对 | 上四休一落在错误的星期几 | `cycleStart` 是锚点，切到 cycle 模式时默认今天；改日期后立即重算预览 |
+| `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
 ## 10. 版本记录
 
@@ -152,17 +166,20 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.0 | 首次上线：班次计薪、加班倍率、本月统计、自由视图（4% 法则） |
 | v1.1 | 修"上班天数"把未开工的今天算进去；去掉"上班 N 天挣 M 天"这种跨口径的句子 |
 | v1.2 | P0 配置导出/导入（v4 备份格式，带校验与老版本迁移）；P1 法定节假日整班 3×；P2 多段休息（`breaks`，老 `lunch*` 自动迁移）；P3 记录面板补录/删除 |
+| v1.3 | 上 N 休 M 循环排班（锚点 + 8 天预览 + 月计薪天数一键折算）；设置里加版本号/更新日志；底部显示版本号 |
 
 ## 11. 待办清单
 
-v1.2 已经把原 P0–P3 全部做完（见第 10 节）。排序依据不变：**会丢数据 > 会算错钱 > 只是不方便**；新需求先写进这里再动手。
+v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依据不变：**会丢数据 > 会算错钱 > 只是不方便**；新需求先写进这里再动手。
 
-### 已完成（v1.2）
+### 已完成（v1.2 – v1.3）
 
 - **P0 导出 / 导入**：设置 → 备份。备份格式 `{v:4, cfg, dayFlags}`，导入有字段白名单、数值夹取和 v3 迁移；解析失败不关弹层，用户可以直接改。
 - **P1 节假日**：加班卡片第三个按钮「按节假日算」，整班按 `otHoliday`；周末节假日用「休息日上班」+ 3× chip 表达。
 - **P2 多段休息**：`cfg.breaks` 数组，设置里增删行；老配置的 `lunch*` 自动迁移，localStorage key 仍是 `money-meter.v3`。
 - **P3 记录**：设置 → 记录，按日期倒序列最近 30 天，支持按日期补录/删除；补录类型会校验工作日/休息日。
+- **v1.3 循环排班**：设置 → 上班怎么排 → 上几休几；锚点 + `cycleWork/cycleRest`，附 8 天预览和平均班数折算。
+- **v1.3 更新日志**：设置 → 关于，渲染 `CHANGELOG`；主界面底部显示 `APP_VERSION`。
 
 ### 候选（未排期）
 
