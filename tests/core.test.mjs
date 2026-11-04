@@ -488,7 +488,7 @@ ok('isValidDateKey 认闰日', A.isValidDateKey('2024-02-29'));
 
 console.log('\n[23] 更新日志');
 ok('当前版本与日志第一条一致', A.APP_VERSION === A.CHANGELOG[0].version, A.APP_VERSION + ' vs ' + A.CHANGELOG[0].version);
-ok('日志从新到旧', A.CHANGELOG[0].version === '1.3.0' && A.CHANGELOG[A.CHANGELOG.length - 1].version === '1.0.0');
+ok('日志从新到旧', A.CHANGELOG[0].version === A.APP_VERSION && A.CHANGELOG[A.CHANGELOG.length - 1].version === '1.0.0');
 ok('每条都有版本号 / 日期 / 内容', A.CHANGELOG.every(function(c){
   return /^\d+\.\d+\.\d+$/.test(c.version) && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
     && Array.isArray(c.items) && c.items.length > 0;

@@ -22,6 +22,7 @@ Most "salary tickers" assume your rate never changes. In reality overtime pays 1
 - **Fix past days** — a record panel lists the last 30 days; backfill a missed overtime or delete a wrong entry
 - **Backup** — export / import the whole config and day flags as JSON, so a cache wipe is not data loss
 - **Built-in changelog** — version, date and notes for every release, right in Settings
+- **One-screen dashboard** — the main view scales with viewport height, so it fits a phone screen without scrolling
 - **Month view** — money, days worked, overtime days, average per shift
 - **Freedom view** — 4% rule target, years until you can stop, and the two levers: save the overtime, spend less
 
