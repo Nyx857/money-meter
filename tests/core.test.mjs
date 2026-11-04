@@ -315,5 +315,39 @@ ok('时间格式被规整', p.cfg.workStart === '09:05' && p.cfg.workEnd === '17
 p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, workDays: 0 } }));
 eq('计薪天数 0 → 默认值', p.cfg.workDays, 21.75);
 
+console.log('\n[19] 法定节假日：整班按 ×3');
+const hol = { '2026-11-04': { holiday: true } }; // 2026-11-04 周三
+let h1 = A.computeTotals(dflt, hol, at(2026, 11, 4, 20, 0));
+eq('周三节假日整班 ¥689.66', h1.today, d2 * 3, 0.001);
+eq('节假日收入不进普通工资', h1.todayRegular, 0);
+ok('shiftMoney 标为 holiday', A.shiftMoney(dflt, hol, A.startOfDay(at(2026, 11, 4, 0, 0)), at(2026, 11, 4, 20, 0)).kind === 'holiday');
+let hs = A.statusAt(dflt, hol, at(2026, 11, 4, 10, 0));
+ok('状态 key = holiday', hs.key === 'holiday', hs.key);
+ok('状态文案 = 节假日上班', hs.label === '节假日上班', hs.label);
+eq('状态倍率 = 3', hs.mult, 3);
+eq('取消节假日 → 回到 1×', A.computeTotals(dflt, {}, at(2026, 11, 4, 20, 0)).today, d2, 0.001);
+eq('请假优先于节假日', A.computeTotals(dflt, { '2026-11-04': { holiday: true, off: true } }, at(2026, 11, 4, 20, 0)).today, 0);
+eq('节假日 + 加班不重复计', A.computeTotals(dflt, { '2026-11-04': { holiday: true, ot: true, mult: 1.5 } }, at(2026, 11, 4, 19, 30)).today, d2 * 3, 0.001);
+eq('节假日只上了半小时', A.computeTotals(dflt, hol, at(2026, 11, 4, 9, 30)).today, 1800 * b2 * 3, 0.001);
+eq('节假日还没开工 → 0', A.computeTotals(dflt, hol, at(2026, 11, 4, 8, 0)).today, 0);
+ok('节假日还没开工状态是 early', A.statusAt(dflt, hol, at(2026, 11, 4, 8, 0)).key === 'early');
+ok('节假日算已开工的上班天数',
+   A.computeTotals(dflt, hol, at(2026, 11, 4, 10, 0)).monthWorkDays ===
+   A.computeTotals(dflt, {}, at(2026, 11, 4, 10, 0)).monthWorkDays);
+eq('节假日也扣午休（8 小时计薪 ×3）',
+   A.computeTotals(day, { '2026-11-04': { holiday: true } }, at(2026, 11, 4, 19, 0)).today, 8 * 3600 * base * 3, 0.001);
+ok('午休时段仍报休息中', A.statusAt(day, { '2026-11-04': { holiday: true } }, at(2026, 11, 4, 12, 30)).key === 'lunch');
+eq('周六标节假日 + 上班 → ×3 而不是 ×2',
+   A.computeTotals(dflt, { '2026-11-07': { holiday: true, worked: true } }, at(2026, 11, 7, 19, 0)).today, d2 * 3, 0.001);
+eq('周六只标节假日没点上班 → 0',
+   A.computeTotals(dflt, { '2026-11-07': { holiday: true } }, at(2026, 11, 7, 19, 0)).today, 0);
+ok('周六节假日上班状态 = 节假日上班',
+   A.statusAt(dflt, { '2026-11-07': { holiday: true, worked: true } }, at(2026, 11, 7, 10, 0)).label === '节假日上班');
+
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 }, dayFlags: { '2026-11-04': { holiday: true, ot: true, mult: 1.5 } } }));
+ok('导入时保留 holiday 并清掉冲突的 ot', p.dayFlags['2026-11-04'].holiday === true && !p.dayFlags['2026-11-04'].ot);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 }, dayFlags: { '2026-11-07': { holiday: true, worked: true } } }));
+ok('导入时保留周末节假日上班', p.dayFlags['2026-11-07'].holiday === true && p.dayFlags['2026-11-07'].worked === true);
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);

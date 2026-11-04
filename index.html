@@ -184,6 +184,7 @@
     overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;
   }
   .ot-chips{display:flex;gap:5px;flex:none}
+  .ot-chips[hidden]{display:none}
   .chip{
     border:1px solid var(--line);background:rgba(255,255,255,.03);
     color:var(--dim);font-family:inherit;font-size:11px;font-weight:600;
@@ -219,6 +220,13 @@
     background:rgba(120,160,255,.12);border-color:rgba(120,160,255,.35);color:#a9c2ff;
   }
   .off-btn[hidden]{display:none}
+  .holiday-btn[hidden]{display:none}
+  .holiday-btn{font-size:13.5px;padding:0 2px}
+  .holiday-btn.is-active{
+    background:rgba(247,201,72,.13);border-color:rgba(247,201,72,.4);color:#ffe2a0;
+  }
+  .ot-actions .ot-btn{font-size:14.5px}
+  .ot-actions .off-btn{font-size:13.5px}
   .ot-hint{font-size:11px;color:var(--dim);text-align:center;line-height:1.5}
   .ot-hint.warn{color:#ffb56b}
   .ot-hint.good{color:#e8c46a}
@@ -546,6 +554,7 @@
     <div class="ot-actions">
       <button class="ot-btn" id="otBtn"><span id="otBtnLabel">今天加班</span></button>
       <button class="off-btn" id="offBtn"><span id="offBtnLabel">今天不上班</span></button>
+      <button class="off-btn holiday-btn" id="holidayBtn" hidden><span id="holidayBtnLabel">按节假日算</span></button>
     </div>
     <div class="ot-hint" id="otHint"></div>
   </section>
@@ -1011,6 +1020,16 @@
     var res = { regular: 0, ot: 0, otSec: 0, mult: 0, kind: "none" };
     if (workday){
       if (f.off) return res;
+      if (f.holiday){
+        // 法定节假日：整班按节假日倍率（默认 3×），不再叠加普通工资
+        var hsec = regularSec(cfg, dayTs, now);
+        var hm = Number(cfg.otHoliday) || 3;
+        res.otSec = hsec;
+        res.ot = hsec * base * hm;
+        res.mult = hm;
+        res.kind = "holiday";
+        return res;
+      }
       res.regular = regularSec(cfg, dayTs, now) * base;
       if (f.ot){
         var ot = { start: hmToMin(cfg.otStart), end: hmToMin(cfg.otEnd), mult: Number(f.mult) || autoMult(cfg, dayTs) };
@@ -1022,11 +1041,11 @@
         res.kind = "regular";
       }
     } else if (f.worked){
-      var m = Number(f.mult) || autoMult(cfg, dayTs);
+      var m = f.holiday ? (Number(cfg.otHoliday) || 3) : (Number(f.mult) || autoMult(cfg, dayTs));
       res.ot = regularSec(cfg, dayTs, now) * base * m;
       res.otSec = regularSec(cfg, dayTs, now);
       res.mult = m;
-      res.kind = "weekend";
+      res.kind = f.holiday ? "holiday" : "weekend";
     }
     return res;
   }
@@ -1140,8 +1159,12 @@
     if (workday && f.off) return { key: "offday", label: "今天不上班", mult: 0, dayTs: dayTs };
     if (!workday && !f.worked) return { key: "rest", label: "休息日", mult: 0, dayTs: dayTs };
 
+    // 节假日：工作日整班按节假日倍率；休息日必须同时点了「上班」才算
+    var holiday = !!f.holiday && (workday || !!f.worked);
+    var holidayMult = Number(cfg.otHoliday) || 3;
+
     var ot = null;
-    if (workday && f.ot){
+    if (workday && f.ot && !holiday){
       ot = { start: hmToMin(cfg.otStart), end: hmToMin(cfg.otEnd), mult: Number(f.mult) || autoMult(cfg, dayTs) };
     }
     var range = ot ? otRange(cfg, dayTs, ot) : null;
@@ -1155,13 +1178,14 @@
 
     var el = shiftElapsedMin(cfg, dayTs, now);
     var segs = shiftSegments(cfg);
-    var segMult = workday ? 1 : (Number(f.mult) || autoMult(cfg, dayTs));
+    var segMult = holiday ? holidayMult : workday ? 1 : (Number(f.mult) || autoMult(cfg, dayTs));
     for (var i = 0; i < segs.length; i++){
       if (el >= segs[i][0] && el < segs[i][1]){
         var lbl;
-        if (workday) lbl = (overnight && lateNight) ? "夜班中" : "在岗中";
+        if (holiday) lbl = (overnight && lateNight) ? "节假日夜班中" : "节假日上班";
+        else if (workday) lbl = (overnight && lateNight) ? "夜班中" : "在岗中";
         else lbl = lateNight ? "周末夜班中" : "周末上班中";
-        return { key: "working", label: lbl, mult: segMult, dayTs: dayTs };
+        return { key: holiday ? "holiday" : "working", label: lbl, mult: segMult, dayTs: dayTs };
       }
     }
     if (segs.length === 2 && el >= segs[0][1] && el < segs[1][0]){
@@ -1305,12 +1329,17 @@
       if (v.off) f.off = true;
       if (v.ot) f.ot = true;
       if (v.worked) f.worked = true;
+      if (v.holiday) f.holiday = true;
       if (f.off){
         delete f.ot;
         delete f.worked;
-      } else if (v.mult != null && (f.ot || f.worked)){
-        var m = Number(v.mult);
-        if (isFinite(m) && m > 0) f.mult = Math.max(1, Math.min(5, m));
+        delete f.holiday;
+      } else {
+        if (f.holiday) delete f.ot;
+        if (v.mult != null && (f.ot || f.worked)){
+          var m = Number(v.mult);
+          if (isFinite(m) && m > 0) f.mult = Math.max(1, Math.min(5, m));
+        }
       }
       if (Object.keys(f).length) out[k] = f;
     });
@@ -1394,6 +1423,7 @@
     spd1l: $("spd1l"), spd2l: $("spd2l"), spd3l: $("spd3l"),
     barLabel: $("barLabel"), barValue: $("barValue"), barFill: $("barFill"),
     otBtn: $("otBtn"), otBtnLabel: $("otBtnLabel"), offBtn: $("offBtn"), offBtnLabel: $("offBtnLabel"),
+    holidayBtn: $("holidayBtn"), holidayBtnLabel: $("holidayBtnLabel"),
     otHint: $("otHint"), otChips: $("otChips"), otTitle: $("otTitle"), otTag: $("otTag"),
     tiles: [1, 2, 3, 4].map(function(i){
       return {
@@ -1591,6 +1621,8 @@
     var rate = base * (status.mult || 0);
     var flags = dayFlagsOf(state.dayFlags, totals.shiftDay);
     var workday = isWorkdayAt(cfg, totals.shiftDay);
+    var holidayNow = !!flags.holiday && (workday || !!flags.worked);
+    var holidayMult = Number(cfg.otHoliday) || 3;
 
     document.body.dataset.mood = (status.key === "ot" || status.mult > 1) ? "ot" : (status.mult > 0 ? "on" : "off");
     var hideCard = state.mode === "free";
@@ -1717,6 +1749,11 @@
       pct = 0;
       barLabel = "今天不上班";
       barValue = "不计薪";
+    } else if (workday && flags.holiday){
+      var hcap = totals.dailyPay * holidayMult;
+      pct = hcap > 0 ? totals.today / hcap : 0;
+      barLabel = "节假日整班进度";
+      barValue = "¥" + fmt2(totals.today) + " / ¥" + fmt2(hcap) + " · ×" + oneDecimal(holidayMult);
     } else if (!workday){
       var dayWage = totals.dailyPay;
       pct = dayWage > 0 ? totals.today / dayWage : 0;
@@ -1741,23 +1778,30 @@
     // ---- 加班卡片 ----
     var otDurMin = hmToMin(cfg.otEnd) - hmToMin(cfg.otStart);
     if (otDurMin <= 0) otDurMin += 1440;
-    if (workday){
+    if (workday && flags.holiday && !flags.off){
+      setText(el.otTitle, "节假日");
+      setText(el.otTag, "整班 ×" + multText(holidayMult));
+    } else if (workday){
       setText(el.otTitle, "加班");
       setText(el.otTag, cfg.otStart + "–" + cfg.otEnd);
     } else {
       setText(el.otTitle, "休息日");
-      setText(el.otTag, flags.worked ? "整班双倍" : "今天不上班");
+      setText(el.otTag, flags.worked
+        ? (flags.holiday ? "节假日 ×" + multText(holidayMult) : "整班双倍")
+        : "今天不上班");
     }
 
     var btnActive, btnLabel, offHidden = false, offLabel = "今天不上班", offActive = false;
+    var holHidden = !workday, holActive = !!flags.holiday, holLabel = "按节假日算";
     if (workday){
       btnActive = !!flags.ot;
       btnLabel = flags.ot ? "取消加班" : "今天加班";
       offLabel = flags.off ? "恢复上班" : "今天不上班";
       offActive = !!flags.off;
+      holLabel = flags.holiday ? "取消节假日" : "按节假日算";
     } else {
       btnActive = !!flags.worked;
-      btnLabel = flags.worked ? "取消上班" : "今天上班 ×" + oneDecimal(Number(flags.mult) || Number(cfg.otWeekend) || 2);
+      btnLabel = flags.worked ? "取消上班" : "今天上班 ×" + oneDecimal(flags.holiday ? holidayMult : (Number(flags.mult) || Number(cfg.otWeekend) || 2));
       offHidden = true;
     }
     if (cache.btn !== btnLabel + "|" + btnActive){
@@ -1771,9 +1815,16 @@
       setText(el.offBtnLabel, offLabel);
       el.offBtn.classList.toggle("is-active", offActive);
     }
+    el.holidayBtn.hidden = holHidden;
+    if (!holHidden && cache.hol !== holLabel + "|" + holActive){
+      cache.hol = holLabel + "|" + holActive;
+      setText(el.holidayBtnLabel, holLabel);
+      el.holidayBtn.classList.toggle("is-active", holActive);
+    }
 
-    // 倍率 chips
-    var multNow = Number(flags.mult) || autoMult(cfg, totals.shiftDay);
+    // 倍率 chips：节假日是整班固定倍率，不参与手选
+    var multNow = holidayNow ? holidayMult : (Number(flags.mult) || autoMult(cfg, totals.shiftDay));
+    el.otChips.hidden = !!(workday && flags.holiday && !flags.off);
     for (var ci = 0; ci < el.otChips.children.length; ci++){
       var chip = el.otChips.children[ci];
       var cm = Number(chip.getAttribute("data-mult"));
@@ -1785,6 +1836,18 @@
     if (workday && flags.off){
       hint = "今天不去了，本班不计薪";
       hintClass = "warn";
+    } else if (workday && flags.holiday){
+      if (status.key === "early"){
+        hint = cfg.workStart + " 上班，节假日整班按 ×" + oneDecimal(holidayMult) + " 计";
+      } else if (status.key === "lunch"){
+        hint = "休息时段，不计薪";
+      } else if (status.key === "after"){
+        hint = "节假日已入账 ¥" + fmt2(totals.today) + "（×" + oneDecimal(holidayMult) + "）";
+        hintClass = "good";
+      } else {
+        hint = "节假日上班 · 整班 ×" + oneDecimal(holidayMult) + "，已入账 ¥" + fmt2(totals.today);
+        hintClass = "good";
+      }
     } else if (workday && flags.ot){
       var otDef = { start: hmToMin(cfg.otStart), end: hmToMin(cfg.otEnd) };
       var range = otRange(cfg, totals.shiftDay, otDef);
@@ -1884,6 +1947,10 @@
     } else if (state.mode === "rate"){
       setText(el.funLine, "平时 1 小时 ¥" + fmtRate(hourlyRate)
         + "，加班 1 小时 ¥" + fmtRate(hourlyRate * otMultNow));
+    } else if (workday && flags.holiday && !flags.off){
+      setText(el.funLine, status.key === "early"
+        ? "今天是节假日 · " + cfg.workStart + " 开始，整班按 ×" + oneDecimal(holidayMult) + " 计"
+        : "节假日上班，整班 ¥" + fmt2(totals.dailyPay * holidayMult) + "（×" + oneDecimal(holidayMult) + "）");
     } else if (status.key === "offday"){
       setText(el.funLine, "今天不上班，钱不涨，人舒服");
     } else if (status.key === "rest"){
@@ -1942,6 +2009,7 @@
       f.ot = !f.ot;
       if (f.ot){
         f.off = false;
+        f.holiday = false;
         if (!f.mult) f.mult = Number(state.cfg.otWeekday) || 1.5;
         toast("今天加班 · " + state.cfg.otStart + "–" + state.cfg.otEnd + " ×" + oneDecimal(f.mult));
       } else {
@@ -1957,14 +2025,35 @@
     var day = shiftDayFor(state.cfg, state.dayFlags, now);
     var f = ensureFlag(day);
     f.off = !f.off;
-    if (f.off) f.ot = false;
+    if (f.off){
+      f.ot = false;
+      f.holiday = false;
+    }
     save();
     render();
     toast(f.off ? "今天不上班，本班不计薪" : "恢复上班");
   }
 
+  function toggleHoliday(){
+    var now = Date.now();
+    var day = shiftDayFor(state.cfg, state.dayFlags, now);
+    if (!isWorkdayAt(state.cfg, day)) return;
+    var f = ensureFlag(day);
+    f.holiday = !f.holiday;
+    if (f.holiday){
+      f.ot = false;
+      f.off = false;
+      toast("按节假日算 · 整班 ×" + oneDecimal(Number(state.cfg.otHoliday) || 3));
+    } else {
+      toast("恢复普通工作日");
+    }
+    save();
+    render();
+  }
+
   el.otBtn.addEventListener("click", toggleOT);
   el.offBtn.addEventListener("click", toggleOff);
+  el.holidayBtn.addEventListener("click", toggleHoliday);
 
   el.otChips.addEventListener("click", function(ev){
     var btn = ev.target.closest ? ev.target.closest("[data-mult]") : null;
@@ -2003,25 +2092,11 @@
     var t = computeTotals(cfg, state.dayFlags, now);
     var st = statusAt(cfg, state.dayFlags, now);
     var flags = dayFlagsOf(state.dayFlags, t.shiftDay);
+    var workdayShare = isWorkdayAt(cfg, t.shiftDay);
     var d = new Date(now), sd = new Date(t.shiftDay);
     var shiftStr = cfg.workStart + " → " + (isOvernight(cfg) ? "次日 " : "") + cfg.workEnd;
     var dayStr = (sd.getMonth() + 1) + "/" + sd.getDate() + " 周" + WEEK_CN[sd.getDay()];
     var shiftDur = fmtDur(dailyWorkSec(cfg) / 60);
-
-    if (state.mode === "free"){
-      var fiS = fiTarget(cfg);
-      var pmtS = Math.max(0, Number(cfg.salary) - Number(cfg.monthExpense));
-      var rateS = Number(cfg.salary) > 0 ? Math.round(pmtS / Number(cfg.salary) * 100) : 0;
-      return {
-        title: "自由计划",
-        text: [
-          "🧭 自由计划",
-          "每月花 ¥" + fmt0(cfg.monthExpense) + " → 自由线 ¥" + fmtWan(fiS),
-          "每月能存 ¥" + fmt0(pmtS) + "（储蓄率 " + rateS + "%）",
-          "按年化 " + (Number(cfg.returnRate) || 0) + "% 算，约 " + fmtMonths(monthsToFI(cfg)) + "后可以不上班"
-        ].join("\n")
-      };
-    }
 
     if (state.mode === "free"){
       var fiS = fiTarget(cfg);
@@ -2073,8 +2148,25 @@
       return { title: "本班战绩", text: ["⏳ " + dayStr + " 还没开工", shiftStr + " · " + shiftDur, "上一班入账 ¥" + fmt2(pm.regular + pm.ot)].join("\n") };
     }
 
-    var r = (st.mult > 0 ? st.mult : 1) * t.base;
-    var tag = st.mult > 1 ? (st.key === "ot" ? " · 加班 ×" : " · 双倍 ×") + multText(st.mult) : "";
+    var shareHolMult = Number(cfg.otHoliday) || 3;
+    var shareHoliday = !!flags.holiday && (workdayShare || !!flags.worked);
+    if (st.key === "holiday"){
+      return {
+        title: "本班战绩",
+        text: [
+          "🏮 " + dayStr + " 节假日上班",
+          shiftStr + " · " + shiftDur,
+          "已入账 ¥" + fmt2(t.today) + "（整班 ×" + multText(shareHolMult) + "）",
+          "每秒 ¥" + fmtRate(t.base * shareHolMult) + " · 每小时 ¥" + fmtRate(t.base * shareHolMult * 3600)
+        ].join("\n")
+      };
+    }
+
+    var shareMult = shareHoliday && !(st.mult > 0) ? shareHolMult : (st.mult > 0 ? st.mult : 1);
+    var r = shareMult * t.base;
+    var tag = shareHoliday
+      ? " · 节假日 ×" + multText(shareHolMult)
+      : st.mult > 1 ? (st.key === "ot" ? " · 加班 ×" : " · 双倍 ×") + multText(st.mult) : "";
     var lines = [
       "💰 本班战绩 · " + dayStr,
       shiftStr + " · " + shiftDur,
