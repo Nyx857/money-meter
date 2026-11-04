@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.4**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.3.5**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -174,6 +174,8 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 字号越缩越小、观感差 | 短屏上标签只有 9–10px | 字号设下限，改为隐藏次要块 / 四格让位，不要无限缩字 |
 | iPhone 上明明一屏却还能滑 | 安全区 81px 没算进去，内容比可见区高 20–90px | 页面锁滚动 + `updateAppOverflow()` 按实际 `scrollHeight` 逐级 `fit-*`；`@media (max-height)` 判断不了安全区 |
 | fit 步骤漏了收间距 | 568 高度下被迫藏掉四格 | `FIT_STEPS` 必须包含 `fit-6`，顺序不能跳 |
+| 设置页能左右滑 | `overflow-y:auto` 隐式把 `overflow-x` 也变成 `auto`，iOS 可横向橡皮筋 | `.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`；`.sheet-tabs` 同样处理 |
+| 底部安全区纯黑 | 背景 radial 在 108% 处，可视区底部只剩底色 | `body::before` 底部 radial 移到 104% 并加一层向上的线性渐变 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
 ## 10. 版本记录
@@ -188,6 +190,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.2 | 设置分「班次 / 加班 / 自由 / 数据 / 更新」五页；更新日志独立成页；未读版本小圆点 + 打开设置直接落到更新页；清空标记移到数据页 |
 | v1.3.3 | 字号整体加大、次要文字提亮；分享移到右上角；修复移动端工具栏造成的假滚动；窄屏标签截断 / 极矮屏四格让位 |
 | v1.3.4 | 页面级滚动锁死；按安全区后的真实高度用 JS 逐级隐藏（fit-1…fit-9），iPhone 刘海 / Home 条不再顶出滚动 |
+| v1.3.5 | 底部暖色渐变（安全区不再纯黑）；设置 / 记录面板禁止横向拖动；页面级横向滑动也锁掉 |
 
 ## 11. 待办清单
 
@@ -205,6 +208,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.2 设置分页**：五个页签 + 未读版本提示；「更新」页单独看日志，不再需要滑到最底。
 - **v1.3.3 可读性 / 假滚动修复**：字号下限提升、分享移到 header、`html` 不再写死 100%、`visualViewport` 兜底；320×480 到 1440×900 全模式无纵向溢出。
 - **v1.3.4 安全区拟合**：页面滚动锁死，主界面按 `visualViewport - safe-area` 的实际高度逐级隐藏；模拟 47/34 安全区后 852/844/812/780/700/667/640/568/480 全部零溢出。
+- **v1.3.5 细节**：`body::before` 底部暖色渐变，`html/body` 横向锁死，`.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`。
 
 ### 候选（未排期）
 
