@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.4.0**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.4.1**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -38,7 +38,7 @@ shots/              文档截图（不影响线上页面）
 start.command       macOS 本地起服务 + 终端二维码（手机同 Wi-Fi 调试用）
 tools/qr.swift      终端二维码生成（start.command 调用）
 tools/shot.swift    WKWebView 真渲染截图 + 控制台探针（自检用）
-tests/core.test.mjs 计薪内核单元测试（224 项）
+tests/core.test.mjs 计薪内核单元测试（263 项）
 ```
 
 ## 4. 代码结构（都在 index.html 的单个 `<script>` 里）
@@ -51,7 +51,7 @@ DOM 引用  → el = {...}
 render()  → 每帧一次（rAF），按 state.mode 分支
 交互      → 加班/不上班/节假日按钮、倍率 chips、tab、分享、设置面板
 记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）
-足迹      → snapshotDay() 每班结束存一条；ensureHistory() 自动补记；historyTotals()/heatmapCells() 汇总
+足迹      → snapshotDay() 每班结束存一条；ensureHistory() 从最后一条快照之后增量补记；dropHistory() 改标记立即重算；historyTotals()/heatmapCells() 汇总
 排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
 版本      → APP_VERSION + CHANGELOG → renderChangelog()
@@ -71,7 +71,7 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 6. **自由视图的公式**：自由线 = 月支出 × 12 × 25（4% 法则）；年限用月复利年金公式解 n，`monthsToFI(cfg, saveDelta, expenseDelta)` 的三个参数分别支持"多存/少花"的假设推演。
 7. **分享文案跟视图走**：`buildShare()` 按 `state.mode` 返回四套文案，按钮文案也要同步（`shareLabel`）；节假日单列一套，不能显示成"双倍"。
 8. **法定节假日整班 ×`otHoliday`**：`shiftMoney()` 里 holiday 分支直接返回，不再叠加普通工资；`f.off` 优先于 `f.holiday`；周末节假日必须同时有 `worked` 才算上班。
-9. **导入一律走校验**：`decodeBackup()` 负责 JSON 解析、字段白名单、数值夹取、日期合法性、`off` 互斥、老版本 `lunch*` → `breaks` 迁移。不要在 UI 里直接 `Object.assign(state.cfg, 粘贴对象)`。
+9. **导入一律走校验**：`decodeBackup()` 负责 JSON 解析、字段白名单、数值夹取、日期合法性、`off` 互斥、老版本 `lunch*` → `breaks` 迁移。不要在 UI 里直接 `Object.assign(state.cfg, 粘贴对象)`。**不含足迹的老备份（v3/v4）不能清空本机 `history`/`recordStart`**，只有备份本身带足迹时才整体覆盖。
 10. **多段休息是唯一形态**：`cfg.breaks` 数组，旧的 `lunchEnabled/lunchStart/lunchEnd` 只在 `breaksFromCfg()` 迁移时出现，不要在新代码里读。
 11. **记录补录要跟班次类型对得上**：工作日才能补加班/请假，休息日才能补"休息日上班"，周末补节假日自动带 `worked`。
 12. **排班只走 `isWorkdayAt()`**：`cfg.schedule` 是 `week` 时看 `workweek`，是 `cycle` 时看 `cycleWork/cycleRest/cycleStart`。月度统计、状态、记录校验都调用它，不要各自判断星期。
@@ -82,8 +82,8 @@ render()  → 每帧一次（rAF），按 state.mode 分支
 17. **未读版本逻辑**：`money-meter.seenVersion` 与 `APP_VERSION` 不同且不是首次使用时，齿轮亮小圆点，打开设置默认落在「更新」页；进入该页就写 seen。首次使用（firstRun）在启动时静默写 seen，避免新用户刚设置完就被提示更新。
 18. **字号有下限**：主界面正文/标签不低于 11px，设置说明不低于 12px；屏幕矮的时候优先隐藏次要块（页脚、四格补充行、进度条、四格），不要把字缩到 9–10px。
 19. **视口高度不要写死**：`html/body` 锁死滚动（`overflow:hidden`），`.app` 用 `--vh100` → `100dvh` → `100vh` 的兜底链，JS 用 `visualViewport.height` 更新。
-20. **足迹快照只写一次**：`snapshotDay()` 只对「已结束 + 有收入 + kind != none」的班次生成快照，金额按**生成时**的 cfg 结算；之后改月薪/排班不会改写历史，只有改当天标记才 `dropHistory()` 重算。否则「个人记录」会随配置漂移。
-21. **足迹从 `recordStart` 开始**：首次初始化设为本月 1 号，`ensureHistory()` 从头补记到昨天/今天已结束的班次；不要用自然年或全量回溯，否则新用户会看到一大段伪造历史。
+20. **足迹快照只写一次**：`snapshotDay()` 只对「已结束 + 有收入 + kind != none」的班次生成快照，金额按**生成时**的 cfg 结算；之后改月薪/排班不会改写历史，只有改某天标记才 `dropHistory()` 重算那一天。否则「个人记录」会随配置漂移。`dropHistory()` 必须**删掉后立即重算**，不能只删——增量补记只从最后一条快照之后扫，中间日期删了就永远补不回来。
+21. **足迹从 `recordStart` 开始**：首次初始化设为本月 1 号；`ensureHistory()` 没有快照时从它开始补，之后从**最后一条快照的次日**增量补记到已结束的班次（单次最多 1830 天，超长空档下一分钟接着补）。不要用自然年或全量回溯，否则新用户会看到一大段伪造历史；也不要每次都从 `recordStart` 重扫，历史超过 400 天后会扫不到今天。
 22. **热力图要跟着数据走**：`hmSig` 里必须带 `historyRev`，否则改完某天标记后快照金额变了、但格子数没变，会继续显示旧格子。
 23. **安全区会吃掉高度**：刘海机 `safe-t/safe-b` 可能吃掉 80px，按视口高度写的 media query 会误判。主界面改用 `updateAppOverflow()`：从无到有逐级加 `fit-1…fit-9`（页脚→四格补充→总结→进度条→工时行→收间距→说明卡→四格→加班提示），每加一级重新量 `scrollHeight`，全加完还不够才允许 app 内部滚动。不要再用 `@media (max-height)` 隐藏主界面块。
 
@@ -124,7 +124,7 @@ render()  → 每帧一次（rAF），按 state.mode 分支
   "2026-11-08": { holiday: true, worked: true } } // 节假日落在周末：仍然要上班
 ```
 
-备份文件结构：`{ v: 4, cfg, dayFlags }`。`v` 是**配置结构版本**（v3 = 单段 `lunch*`，v4 = `breaks`），跟 localStorage key `money-meter.v3` 不是一回事；导入 v3 会自动迁移。
+备份文件结构：`{ v: 5, cfg, dayFlags, recordStart, history }`。`v` 是**配置结构版本**（v3 = 单段 `lunch*`，v4 = `breaks`，v5 = 带足迹），跟 localStorage key `money-meter.v3` 不是一回事；导入 v3/v4 会自动迁移，老备份没有足迹时保留本机已有的 history。
 
 ## 7. 改代码的标准流程
 
@@ -199,6 +199,11 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 热力图改完标记不刷新 | 只靠记录条数做签名，金额变了条数没变 | 签名加入 `historyRev`，`ensureHistory`/`dropHistory` 都递增 |
 | 线上验证看到旧版 | SW 缓存优先，后台更新下一次才生效 | 正常现象；发版时升 `sw.js` 的 `VERSION`，验证用新端口或等一次重开 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
+| 足迹补记 400 天就不动了 | 用满一年多后「累计入账」不再增加，且没报错 | 已修：`ensureHistory()` 改增量（从最后一条快照之后扫），单次上限 1830 天，超出下一分钟接着补 |
+| 删了中间某天的快照就补不回来 | 改历史某天的标记后，那天的金额从足迹里消失 | 已修：`dropHistory()` 删掉后立即用当前 cfg 重算，不要只删等下次补记 |
+| 导入 v3/v4 老备份把足迹清空 | 本机攒的记录被本月估算覆盖 | 已修：备份 `historyCount === 0` 时保留本机 `history`/`recordStart`，确认框写清 |
+| 热力图金额提示不刷新 | 只改倍率、秒数没变时，点格子还是旧金额 | 已修：`hmSig` 带上当日实时金额（取整到元，避免每秒重绘） |
+| 保存设置时用旧配置补记 | 极少数空档会用改之前的月薪结算 | 已修：先 `state.cfg = cfg` 再 `ensureHistory()` |
 
 ## 10. 版本记录
 
@@ -217,6 +222,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.7 | 加 Service Worker：页面优先读缓存（第二次起秒开）、离线可开、后台更新；清理无用样式与调试截图 |
 | v1.3.8 | 修复 PWA「打不开网页」：缓存响应带 `Content-Encoding: br`，iOS Safari 回放解码失败；写缓存前剥掉编码头；导航改网络优先 + 900ms 超时回退 + 友好离线页 |
 | v1.4.0 | 新增「足迹」：每班结束自动快照、12 周热力图、累计收入/工时/加班；备份升到 v5 并包含 history/recordStart |
+| v1.4.1 | 修足迹补记 400 天断档（改增量补记）、导入老备份清空足迹、热力图金额不刷新、保存设置用旧配置补记 |
 
 ## 11. 待办清单
 
@@ -239,13 +245,14 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.7 启动缓存**：`sw.js` 缓存导航与静态资源；发版改 `VERSION`；更新下一次打开生效。已用停掉本地服务器的方式验证离线可开。
 - **v1.3.8 缓存修复**：`cleanResponse()` 去掉 `content-encoding/content-length` 等头再写缓存；导航网络优先、900ms 超时回退；不再返回 `Response.error()`。发版后 SW 会在后台更新，坏缓存随旧 `CACHE` 一起删掉。
 - **v1.4.0 足迹**：本月初起自动补记已结束班次；`state.history` 存金额/工时/加班；12 周热力图 + 累计统计；备份 v5 带上记录。设计灵感来自 Rond 的地理日记，但这里记录的是「时间换来的钱」，不定位、不上传。
+- **v1.4.1 足迹修复**：补记改增量（从最后一条快照之后），不再有 400 天断档；`dropHistory()` 立即重算中间日期；导入不含足迹的老备份保留本机记录；热力图签名带当日金额；保存设置时先换 cfg 再补记。内核测试 263 项。
 
 ### 候选（未排期）
 
 - **半天假 / 半天班**：现在 `dayFlags` 只有整班开关，半天要能按小时扣。`off` / `worked` 要改成可带时长的结构，`shiftMoney()` 与记录面板都得跟。
 - **一个班次多个加班时段**：`otStart/otEnd` 只有一段，遇到"早到 1 小时 + 晚上 2 小时"只能合并。可仿照 P2 改成 `cfg.otWindows` 数组，注意与休息时段、跨零点求交。
 - **记录按月汇总**：记录面板只列日期和状态、不显示金额；可加"这个月补录带来多少钱"的汇总。
-- **PWA 离线**：现在只有 manifest，没有 service worker；断网冷启动打不开。加 SW 要处理缓存版本，别把用户锁在旧版。
+- **足迹按月翻页**：现在只有 12 周热力图 + 本月/上月两张卡，记录超过一年后翻不回去；可按月切换或加年总览（纯前端，不动数据结构）。
 
 ### 明确不做
 

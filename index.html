@@ -1185,8 +1185,14 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.0";
+  var APP_VERSION = "1.4.1";
   var CHANGELOG = [
+    { version: "1.4.1", date: "2026-11-05", items: [
+      "修复足迹补记超过 400 天会悄悄停止：改成从最后一条记录之后往后补，记录再久也不会断",
+      "导入不含足迹的老备份（v3 / v4）时保留本机已有记录，不再一次清空",
+      "修复改倍率后足迹页当天金额提示不刷新；保存设置时不再用旧配置补记",
+      "补记最多一次扫 5 年，超长空档下一分钟接着补"
+    ] },
     { version: "1.4.0", date: "2026-11-05", items: [
       "新增「足迹」页：每个已结束的班次自动记一条，累计收入 / 工时 / 加班",
       "12 周热力图，点格子看当天；记录从本月开始，打开就自动补记，不用打卡",
@@ -2009,6 +2015,20 @@
     return cells;
   }
 
+  // 补记从哪一天开始：recordStart 与「最后一条快照之后」取较大者。
+  // 增量补记只扫最近的空档，历史不会因为越记越久就每次都从头重扫。
+  function historyBackfillStart(history, recordStart, now){
+    var start = new Date(recordStart + "T00:00:00").getTime();
+    var end = startOfDay(now);
+    var latest = 0;
+    Object.keys(history || {}).forEach(function(k){
+      var t = new Date(k + "T00:00:00").getTime();
+      if (isFinite(t) && t <= end && t > latest) latest = t;
+    });
+    if (latest && latest + DAY_MS > start) start = latest + DAY_MS;
+    return start;
+  }
+
   // 解析一段备份文本；失败时 error 是给用户看的一句话
   function decodeBackup(raw){
     var out = { ok: false, error: "", version: 0, cfg: null, dayFlags: null, count: 0,
@@ -2081,17 +2101,19 @@
     } catch (e) {}
   }
 
-  // 自动补记：从 recordStart 到今天的每个已结束班次，各存一条快照
+  // 自动补记：从「最后一条快照之后」扫到今天的每个已结束班次，各存一条快照。
+  // 没有快照时从 recordStart 开始；单次最多扫 1830 天（约 5 年，实测 ~6ms），
+  // 更长的空档下一分钟会从上次停下的地方接着补，不会卡住。
   function ensureHistory(now){
     var changed = false;
     if (!isValidDateKey(state.recordStart)){
       state.recordStart = dayKey(startOfMonth(now));
       changed = true;
     }
-    var start = new Date(state.recordStart + "T00:00:00").getTime();
+    var start = historyBackfillStart(state.history, state.recordStart, now);
     var end = startOfDay(now);
     var d = start, guard = 0;
-    while (d <= end && guard++ < 400){
+    while (d <= end && guard++ < 1830){
       var k = dayKey(d);
       if (!state.history[k]){
         var snap = snapshotDay(state.cfg, state.dayFlags, d, now);
@@ -2105,11 +2127,15 @@
     }
   }
 
-  // 改了某天标记后，把那天已经生成的快照删掉，下一次 ensureHistory 重算
+  // 改了某天标记后，删掉旧快照并按当前配置重算。
+  // 不能只删不补：中间某天（早于最后一条快照）被删后，增量补记不会再扫到它。
   function dropHistory(dayTs){
     var k = dayKey(dayTs);
-    if (state.history[k]){
-      delete state.history[k];
+    var had = !!state.history[k];
+    if (had) delete state.history[k];
+    var snap = snapshotDay(state.cfg, state.dayFlags, dayTs, Date.now());
+    if (snap) state.history[k] = snap;
+    if (had || snap){
       state.historyRev += 1;
       save();
     }
@@ -2488,8 +2514,8 @@
       }
     }
     var sig = state.historyRev + "|" + Object.keys(state.history).length + "|" + todayK + "|" +
-      (todayLive ? Math.floor(todayLive.sec / 60) : -1) + "|" + state.recordStart + "|" +
-      Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0);
+      (todayLive ? Math.floor(todayLive.sec / 60) + ":" + Math.round(todayLive.amount) : "-") + "|" +
+      state.recordStart + "|" + Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0);
     if (sig === hmSig) return;
     hmSig = sig;
 
@@ -3380,9 +3406,9 @@
     cfg.otHoliday = Math.max(1, cfg.otHoliday);
     cfg.payday = Math.max(1, Math.min(31, cfg.payday));
 
-    ensureHistory(Date.now());
     state.cfg = cfg;
     state.firstRun = false;
+    ensureHistory(Date.now());
     cache = {};
     save();
     closeSheet();
@@ -3451,11 +3477,19 @@
   function doImport(){
     var parsed = decodeBackup(dataText.value);
     if (!parsed.ok){ toast(parsed.error); return; }
-    if (!confirm("导入会覆盖当前的配置、标记和足迹，继续？")) return;
+    var localDays = Object.keys(state.history).length;
+    // 老备份（v3/v4）没有足迹：保留本机记录，别让一次导入把足迹清空
+    var keepFootprint = parsed.historyCount === 0 && localDays > 0;
+    var tip = keepFootprint
+      ? "这份备份不含足迹，导入后保留本机已有的 " + localDays + " 天记录。配置和标记会被覆盖，继续？"
+      : "导入会覆盖当前的配置、标记和足迹" + (localDays ? "（" + localDays + " 天）" : "") + "，继续？";
+    if (!confirm(tip)) return;
     state.cfg = parsed.cfg;
     state.dayFlags = parsed.dayFlags;
-    state.history = parsed.history || {};
-    state.recordStart = parsed.recordStart || "";
+    if (!keepFootprint){
+      state.history = parsed.history || {};
+      state.recordStart = parsed.recordStart || "";
+    }
     state.historyRev += 1;
     state.firstRun = false;
     ensureHistory(Date.now());
@@ -3465,7 +3499,8 @@
     closeSheet();
     render();
     toast("已导入 · 月薪 ¥" + fmt0(state.cfg.salary) + " · " + parsed.count + " 天标记"
-      + (parsed.historyCount ? " · " + parsed.historyCount + " 天足迹" : "") + versionNote(parsed.version));
+      + (parsed.historyCount ? " · " + parsed.historyCount + " 天足迹" : (keepFootprint ? " · 保留本机足迹" : ""))
+      + versionNote(parsed.version));
   }
 
   function pasteIntoData(){

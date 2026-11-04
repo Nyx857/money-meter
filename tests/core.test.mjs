@@ -13,7 +13,7 @@ const A = new Function(
   'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS,' +
   'recordStatus,recordFlagFor,recentRecordKeys,' +
   'isCycleWorkday,cycleParts,cycleAvgDays,isValidDateKey,APP_VERSION,CHANGELOG,' +
-  'snapshotDay,normalizeHistory,historyTotals,historyMonth,heatmapCells};'
+  'snapshotDay,normalizeHistory,historyTotals,historyMonth,heatmapCells,historyBackfillStart};'
 )();
 
 let pass = 0, fail = 0;
@@ -551,6 +551,18 @@ const b5 = A.decodeBackup(JSON.stringify({
 ok('v5 备份带足迹', b5.ok && b5.version === 5 && b5.historyCount === 1 && b5.recordStart === '2026-11-01');
 eq('足迹金额恢复', b5.history['2026-11-04'].amount, 100);
 ok('老备份没有足迹也兼容', A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 } })).historyCount === 0);
+
+console.log('\n[26] 足迹增量补记');
+const bf = (hist, rs, ts) => A.historyBackfillStart(hist, rs, ts);
+const d0 = (y, m, d) => A.startOfDay(at(y, m, d, 0, 0));
+ok('没有快照时从 recordStart 开始', bf({}, '2026-09-01', at(2026, 11, 5, 10, 0)) === d0(2026, 9, 1));
+ok('有快照时从其后一天开始', bf({ '2026-11-03': {} }, '2026-09-01', at(2026, 11, 5, 10, 0)) === d0(2026, 11, 4));
+ok('最后一条是今天 → 从明天开始', bf({ '2026-11-05': {} }, '2026-11-01', at(2026, 11, 5, 23, 0)) === d0(2026, 11, 6));
+ok('未来日期的快照不当基准', bf({ '2026-11-20': {} }, '2026-11-01', at(2026, 11, 5, 10, 0)) === d0(2026, 11, 1));
+ok('recordStart 晚于快照时以 recordStart 为准', bf({ '2026-11-03': {} }, '2026-11-10', at(2026, 11, 12, 10, 0)) === d0(2026, 11, 10));
+ok('非法日期键跳过', bf({ bad: {}, '2026-13-01': {}, '2026-11-04': {} }, '2026-11-01', at(2026, 11, 5, 10, 0)) === d0(2026, 11, 5));
+ok('超过一年没打开仍从最后一条之后补', bf({ '2026-10-30': {} }, '2025-01-01', at(2026, 11, 5, 10, 0)) === d0(2026, 10, 31));
+ok('跨零点凌晨补昨天那一班', bf({ '2026-11-03': {} }, '2026-11-01', at(2026, 11, 5, 1, 10)) === d0(2026, 11, 4));
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);
