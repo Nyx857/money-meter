@@ -1185,8 +1185,12 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.1";
+  var APP_VERSION = "1.4.2";
   var CHANGELOG = [
+    { version: "1.4.2", date: "2026-11-05", items: [
+      "夜班过了零点后「足迹」不再停住：累计入账和当天格子继续按昨天那一班实时累加",
+      "跨月夜班（比如 10/31 上到 11/1）不会把这一班的钱算进新月份"
+    ] },
     { version: "1.4.1", date: "2026-11-05", items: [
       "修复足迹补记超过 400 天会悄悄停止：改成从最后一条记录之后往后补，记录再久也不会断",
       "导入不含足迹的老备份（v3 / v4）时保留本机已有记录，不再一次清空",
@@ -2029,6 +2033,30 @@
     return start;
   }
 
+  // 当前这一班（可能跨零点）还没入库的实时金额；没在上班时返回 null。
+  // 夜班过了零点仍算昨天那一班，所以取 shiftDayFor() 而不是自然日。
+  // 刚下班、快照还没落库（最多一分钟）的上一班也顶上，避免交班那一刻金额回落。
+  function historyLive(cfg, dayFlags, now){
+    var day = shiftDayFor(cfg, dayFlags, now);
+    var m = shiftMoney(cfg, dayFlags, day, now);
+    if (m.kind !== "none"){
+      var sec = (m.kind === "holiday" || m.kind === "weekend")
+        ? m.otSec : (regularSec(cfg, day, now) + m.otSec);
+      var amount = m.regular + m.ot;
+      if (sec > 0 || amount > 0)
+        return { key: dayKey(day), sec: sec, amount: amount, otSec: m.otSec, otAmount: m.ot };
+    }
+    // 刚下班、快照还没落库（最多一两分钟）的上一班也顶上，避免交班那一刻金额回落。
+    // 只在上一次下班后两小时内兜底，避免把很久以前的空档当成「实时」。
+    var prev = addDays(day, -1);
+    var prevEnd = shiftActiveEnd(cfg, dayFlags, prev);
+    if (now >= prevEnd && now - prevEnd <= 2 * 3600 * 1000){
+      var snap = snapshotDay(cfg, dayFlags, prev, now);
+      if (snap) return { key: dayKey(prev), sec: snap.sec, amount: snap.amount, otSec: snap.otSec, otAmount: snap.otAmount };
+    }
+    return null;
+  }
+
   // 解析一段备份文本；失败时 error 是给用户看的一句话
   function decodeBackup(raw){
     var out = { ok: false, error: "", version: 0, cfg: null, dayFlags: null, count: 0,
@@ -2466,21 +2494,13 @@
 
   /* ---------------- 足迹视图 ---------------- */
   function addTodayLive(t, now){
-    var k = dayKey(now);
-    if (state.history[k]) return t;
-    var day = startOfDay(now);
-    var m = shiftMoney(state.cfg, state.dayFlags, day, now);
-    if (m.kind === "none") return t;
-    var sec = (m.kind === "holiday" || m.kind === "weekend")
-      ? m.otSec : (regularSec(state.cfg, day, now) + m.otSec);
-    var amt = m.regular + m.ot;
-    if (sec > 0 || amt > 0){
-      t.amount += amt;
-      t.sec += sec;
-      t.otSec += m.otSec;
-      t.otAmount += m.ot;
-      if (sec > 0) t.days += 1;
-    }
+    var live = historyLive(state.cfg, state.dayFlags, now);
+    if (!live || state.history[live.key]) return t;
+    t.amount += live.amount;
+    t.sec += live.sec;
+    t.otSec += live.otSec;
+    t.otAmount += live.otAmount;
+    if (live.sec > 0) t.days += 1;
     return t;
   }
 
@@ -2494,7 +2514,9 @@
     d.setMonth(d.getMonth() + (offset || 0));
     var ym = d.getFullYear() + "-" + pad2(d.getMonth() + 1);
     var t = historyMonth(state.history, ym);
-    if (!offset) addTodayLive(t, now);
+    // 只在「当前这一班」属于这个月时补实时：跨月夜班要算进它开始的那个月
+    var live = historyLive(state.cfg, state.dayFlags, now);
+    if (live && live.key.indexOf(ym) === 0) addTodayLive(t, now);
     return t;
   }
 
@@ -2503,17 +2525,10 @@
     var cells = heatmapCells(state.history, now, 12);
     var full = dailyWorkSec(state.cfg) || 1;
     var todayK = dayKey(now);
-    var todayLive = null;
-    if (!state.history[todayK]){
-      var day = startOfDay(now);
-      var m = shiftMoney(state.cfg, state.dayFlags, day, now);
-      if (m.kind !== "none"){
-        var sec = (m.kind === "holiday" || m.kind === "weekend")
-          ? m.otSec : (regularSec(state.cfg, day, now) + m.otSec);
-        if (sec > 0 || m.regular + m.ot > 0) todayLive = { sec: sec, amount: m.regular + m.ot };
-      }
-    }
-    var sig = state.historyRev + "|" + Object.keys(state.history).length + "|" + todayK + "|" +
+    var live = historyLive(state.cfg, state.dayFlags, now);
+    var liveKey = live ? live.key : "";
+    var todayLive = (live && !state.history[liveKey]) ? live : null;
+    var sig = state.historyRev + "|" + Object.keys(state.history).length + "|" + todayK + "|" + liveKey + "|" +
       (todayLive ? Math.floor(todayLive.sec / 60) + ":" + Math.round(todayLive.amount) : "-") + "|" +
       state.recordStart + "|" + Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0);
     if (sig === hmSig) return;
@@ -2524,7 +2539,7 @@
     for (var i = 0; i < cells.length; i++){
       var c = cells[i];
       var cSec = c.sec, cAmt = c.amount;
-      if (c.today && todayLive && !state.history[c.key]){ cSec = todayLive.sec; cAmt = todayLive.amount; }
+      if (c.key === liveKey && todayLive && !state.history[c.key]){ cSec = todayLive.sec; cAmt = todayLive.amount; }
       var ratio = full > 0 ? cSec / full : 0;
       var lvl = ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 0.95 ? 2 : ratio < 1.25 ? 3 : 4;
       var cls = "hm-cell" + (lvl ? " l" + lvl : "") + (c.today ? " today" : "") +

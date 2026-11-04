@@ -13,7 +13,7 @@ const A = new Function(
   'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS,' +
   'recordStatus,recordFlagFor,recentRecordKeys,' +
   'isCycleWorkday,cycleParts,cycleAvgDays,isValidDateKey,APP_VERSION,CHANGELOG,' +
-  'snapshotDay,normalizeHistory,historyTotals,historyMonth,heatmapCells,historyBackfillStart};'
+  'snapshotDay,normalizeHistory,historyTotals,historyMonth,heatmapCells,historyBackfillStart,historyLive};'
 )();
 
 let pass = 0, fail = 0;
@@ -563,6 +563,26 @@ ok('recordStart 晚于快照时以 recordStart 为准', bf({ '2026-11-03': {} },
 ok('非法日期键跳过', bf({ bad: {}, '2026-13-01': {}, '2026-11-04': {} }, '2026-11-01', at(2026, 11, 5, 10, 0)) === d0(2026, 11, 5));
 ok('超过一年没打开仍从最后一条之后补', bf({ '2026-10-30': {} }, '2025-01-01', at(2026, 11, 5, 10, 0)) === d0(2026, 10, 31));
 ok('跨零点凌晨补昨天那一班', bf({ '2026-11-03': {} }, '2026-11-01', at(2026, 11, 5, 1, 10)) === d0(2026, 11, 4));
+
+console.log('\n[27] 跨零点实时足迹');
+const nl = A.historyLive(night, {}, at(2026, 11, 5, 0, 10));
+ok('凌晨 00:10 的实时记录挂在昨天', nl && nl.key === '2026-11-04', nl && nl.key);
+eq('凌晨 00:10 工时 7h50m', nl.sec, 470 * 60);
+eq('凌晨 00:10 金额按当时费率', nl.amount, 470 * 60 * base, 0.01);
+const nEnd = A.historyLive(night, {}, at(2026, 11, 5, 0, 30));
+ok('下班后顶上刚结束那一班', nEnd && nEnd.key === '2026-11-04', nEnd && nEnd.key);
+eq('顶上的是一整班 8 小时', nEnd.sec, 8 * 3600);
+ok('请假没有实时金额', A.historyLive(night, { '2026-11-04': { off: true } }, at(2026, 11, 5, 0, 10)) === null);
+ok('白天班凌晨还没开工', A.historyLive(dflt, {}, at(2026, 11, 5, 1, 0)) === null);
+const hl = A.historyLive(dflt, { '2026-11-04': { holiday: true } }, at(2026, 11, 4, 12, 0));
+eq('节假日实时只算一次工时', hl.sec, 3 * 3600);
+eq('节假日实时 3×', hl.amount, 3 * 3600 * b2 * 3, 0.01);
+const ho = A.historyLive(dflt, dfltOT, at(2026, 11, 4, 19, 30));
+eq('加班实时含普通工时', ho.sec, 28800 + 7200);
+eq('加班实时金额', ho.amount, d2 + 7200 * b2 * 1.5, 0.01);
+const hp = A.historyLive(night, {}, at(2026, 11, 5, 3, 30));
+ok('交班三小时后不再兜底', hp === null, hp && hp.key);
+ok('上一班是休息日则不补', A.historyLive(night, {}, at(2026, 11, 8, 1, 0)) === null);
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);

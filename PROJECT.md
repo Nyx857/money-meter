@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.4.1**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.4.2**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -38,7 +38,7 @@ shots/              文档截图（不影响线上页面）
 start.command       macOS 本地起服务 + 终端二维码（手机同 Wi-Fi 调试用）
 tools/qr.swift      终端二维码生成（start.command 调用）
 tools/shot.swift    WKWebView 真渲染截图 + 控制台探针（自检用）
-tests/core.test.mjs 计薪内核单元测试（263 项）
+tests/core.test.mjs 计薪内核单元测试（276 项）
 ```
 
 ## 4. 代码结构（都在 index.html 的单个 `<script>` 里）
@@ -51,7 +51,7 @@ DOM 引用  → el = {...}
 render()  → 每帧一次（rAF），按 state.mode 分支
 交互      → 加班/不上班/节假日按钮、倍率 chips、tab、分享、设置面板
 记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）
-足迹      → snapshotDay() 每班结束存一条；ensureHistory() 从最后一条快照之后增量补记；dropHistory() 改标记立即重算；historyTotals()/heatmapCells() 汇总
+足迹      → snapshotDay() 每班结束存一条；ensureHistory() 从最后一条快照之后增量补记；dropHistory() 改标记立即重算；historyLive() 算当前这一班（跨零点挂昨天）；historyTotals()/heatmapCells() 汇总
 排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
 版本      → APP_VERSION + CHANGELOG → renderChangelog()
@@ -204,6 +204,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 导入 v3/v4 老备份把足迹清空 | 本机攒的记录被本月估算覆盖 | 已修：备份 `historyCount === 0` 时保留本机 `history`/`recordStart`，确认框写清 |
 | 热力图金额提示不刷新 | 只改倍率、秒数没变时，点格子还是旧金额 | 已修：`hmSig` 带上当日实时金额（取整到元，避免每秒重绘） |
 | 保存设置时用旧配置补记 | 极少数空档会用改之前的月薪结算 | 已修：先 `state.cfg = cfg` 再 `ensureHistory()` |
+| 夜班过零点足迹停住 | 00:00 后「累计入账」不再涨、当天格子空白 | 已修：`historyLive()` 用 `shiftDayFor()` 取当前班次，夜班仍挂昨天；跨月那一班不并进新月份 |
 
 ## 10. 版本记录
 
@@ -223,6 +224,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.8 | 修复 PWA「打不开网页」：缓存响应带 `Content-Encoding: br`，iOS Safari 回放解码失败；写缓存前剥掉编码头；导航改网络优先 + 900ms 超时回退 + 友好离线页 |
 | v1.4.0 | 新增「足迹」：每班结束自动快照、12 周热力图、累计收入/工时/加班；备份升到 v5 并包含 history/recordStart |
 | v1.4.1 | 修足迹补记 400 天断档（改增量补记）、导入老备份清空足迹、热力图金额不刷新、保存设置用旧配置补记 |
+| v1.4.2 | 修夜班过零点后足迹实时金额停住、跨月夜班并入错月份 |
 
 ## 11. 待办清单
 
@@ -246,6 +248,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.8 缓存修复**：`cleanResponse()` 去掉 `content-encoding/content-length` 等头再写缓存；导航网络优先、900ms 超时回退；不再返回 `Response.error()`。发版后 SW 会在后台更新，坏缓存随旧 `CACHE` 一起删掉。
 - **v1.4.0 足迹**：本月初起自动补记已结束班次；`state.history` 存金额/工时/加班；12 周热力图 + 累计统计；备份 v5 带上记录。设计灵感来自 Rond 的地理日记，但这里记录的是「时间换来的钱」，不定位、不上传。
 - **v1.4.1 足迹修复**：补记改增量（从最后一条快照之后），不再有 400 天断档；`dropHistory()` 立即重算中间日期；导入不含足迹的老备份保留本机记录；热力图签名带当日金额；保存设置时先换 cfg 再补记。内核测试 263 项。
+- **v1.4.2 跨零点实时**：`historyLive()` 按 `shiftDayFor()` 取当前班次，夜班凌晨的实时金额挂在昨天那一班；月度卡片只在同一月时并入实时，跨月不串。内核测试 276 项。
 
 ### 候选（未排期）
 
