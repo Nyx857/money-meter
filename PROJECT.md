@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.3.7**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.3.8**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -19,7 +19,7 @@
 | --- | --- |
 | 入口 | `index.html`（全部 HTML/CSS/JS 内联，约 140KB） |
 | 依赖 | 无。没有 package.json、没有构建步骤 |
-| 离线 | `sw.js` Service Worker：导航缓存优先，静态资源缓存优先，后台更新 |
+| 离线 | `sw.js` Service Worker：导航网络优先（900ms 超时）回退干净缓存，静态资源缓存优先 |
 | 存储 | localStorage，key = `money-meter.v3`；SW 缓存名 `money-meter-<版本>` |
 | 后端 | 无。纯静态，不联网 |
 
@@ -179,7 +179,9 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | fit 步骤漏了收间距 | 568 高度下被迫藏掉四格 | `FIT_STEPS` 必须包含 `fit-6`，顺序不能跳 |
 | 设置页能左右滑 | `overflow-y:auto` 隐式把 `overflow-x` 也变成 `auto`，iOS 可横向橡皮筋 | `.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`；`.sheet-tabs` 同样处理 |
 | 底部安全区纯黑 | 背景 radial 在 108% 处，可视区底部只剩底色 | `body::before` 底部 radial 移到 104% 并加一层向上的线性渐变 |
-| 桌面打开黑屏几秒 | PWA 冷启动每次走网络，HTML 到之前只有 launch screen | `sw.js` 导航缓存优先；第一次打开建立缓存，之后秒开；`_headers` 给 index/sw 设 no-cache |
+| 桌面打开黑屏几秒 | PWA 冷启动每次走网络，HTML 到之前只有 launch screen | `sw.js` 导航缓存；第一次打开建立缓存，之后秒开/离线可开；`_headers` 给 index/sw 设 no-cache |
+| iOS PWA「打不开网页」 | 缓存了 Cloudflare 的 `Content-Encoding: br` 响应，Safari 回放时解码失败 | 写缓存前用 `cleanResponse()` 剥掉编码头；导航失败绝不用 `Response.error()` |
+| SW 更新被旧缓存挡住 | 缓存优先导致新版晚一次打开才生效 | 导航改网络优先 + 900ms 超时，兼顾秒开与立即更新 |
 | 线上验证看到旧版 | SW 缓存优先，后台更新下一次才生效 | 正常现象；发版时升 `sw.js` 的 `VERSION`，验证用新端口或等一次重开 |
 | `[hidden]` 在 `.week` 上失效 | 切到循环模式，星期按钮还露着 | `.week` 是 `display:flex`，必须显式写 `.week[hidden]{display:none}` |
 
@@ -198,6 +200,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.3.5 | 底部暖色渐变（安全区不再纯黑）；设置 / 记录面板禁止横向拖动；页面级横向滑动也锁掉 |
 | v1.3.6 | 「月计薪天数」从「钱」移到「上班怎么排」之后，先排班再折算 |
 | v1.3.7 | 加 Service Worker：页面优先读缓存（第二次起秒开）、离线可开、后台更新；清理无用样式与调试截图 |
+| v1.3.8 | 修复 PWA「打不开网页」：缓存响应带 `Content-Encoding: br`，iOS Safari 回放解码失败；写缓存前剥掉编码头；导航改网络优先 + 900ms 超时回退 + 友好离线页 |
 
 ## 11. 待办清单
 
@@ -218,6 +221,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.3.5 细节**：`body::before` 底部暖色渐变，`html/body` 横向锁死，`.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`。
 - **v1.3.6 顺序调整**：月计薪天数字段移到排班控件之后，循环预览和「按这个填」在同一屏。
 - **v1.3.7 启动缓存**：`sw.js` 缓存导航与静态资源；发版改 `VERSION`；更新下一次打开生效。已用停掉本地服务器的方式验证离线可开。
+- **v1.3.8 缓存修复**：`cleanResponse()` 去掉 `content-encoding/content-length` 等头再写缓存；导航网络优先、900ms 超时回退；不再返回 `Response.error()`。发版后 SW 会在后台更新，坏缓存随旧 `CACHE` 一起删掉。
 
 ### 候选（未排期）
 
