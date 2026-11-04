@@ -424,6 +424,49 @@
   }
   .danger:active{color:var(--red)}
 
+  /* ---------- 备份 / 恢复 ---------- */
+  .data-row{display:flex;gap:9px}
+  .data-btn{
+    flex:1;height:42px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.035);color:#c9d1da;
+    font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:.18s;
+  }
+  .data-btn:active{transform:scale(.985);background:rgba(255,255,255,.085)}
+  .data-btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .data-modal{
+    position:fixed;inset:0;z-index:70;
+    display:flex;align-items:center;justify-content:center;
+    padding:calc(var(--safe-t) + 18px) 18px calc(var(--safe-b) + 18px);
+    background:rgba(0,0,0,.66);
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .data-modal.open{opacity:1;pointer-events:auto}
+  .data-card{
+    width:100%;max-width:440px;max-height:min(78vh,620px);
+    display:flex;flex-direction:column;gap:10px;
+    background:#12161b;border:1px solid rgba(255,255,255,.1);border-radius:20px;
+    padding:16px;box-shadow:0 30px 80px -30px rgba(0,0,0,.9);
+    transform:translateY(8px) scale(.985);transition:transform .2s ease;
+  }
+  .data-modal.open .data-card{transform:none}
+  .data-card h3{margin:0;font-size:15px;font-weight:650;letter-spacing:.01em}
+  .data-card .data-sub{margin:0;font-size:11px;color:#7c8592;line-height:1.6}
+  .data-text{
+    flex:1;min-height:132px;height:180px;width:100%;resize:none;
+    background:#0a0d10;border:1px solid rgba(255,255,255,.09);border-radius:12px;
+    color:#cfd6de;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11px;line-height:1.55;padding:10px;outline:none;
+    user-select:text;-webkit-user-select:text;
+  }
+  .data-text:focus{border-color:rgba(247,201,72,.4)}
+  .data-text[readonly]{color:#9aa4b1}
+  .data-actions{display:flex;gap:9px}
+  .data-actions .ghost{flex:1;height:44px;font-size:12.5px}
+  .data-actions .save{flex:1.25;height:44px;font-size:13.5px;border-radius:13px}
+
   /* ---------- toast ---------- */
   .toast{
     position:fixed;left:50%;bottom:calc(var(--safe-b) + 26px);z-index:60;
@@ -684,11 +727,40 @@
       <input type="number" id="inReturn" inputmode="decimal" min="0" max="20" step="0.5" placeholder="5">
       <div class="hint">扣掉通胀后的实际收益。保守填 4–5，别按牛市算。</div>
     </div>
+
+    <div class="section">备份</div>
+
+    <div class="field">
+      <label>配置只存在这台设备上</label>
+      <div class="data-row">
+        <button type="button" class="data-btn" id="exportBtn">
+          <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          导出配置
+        </button>
+        <button type="button" class="data-btn" id="importBtn">
+          <svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          导入配置
+        </button>
+      </div>
+      <div class="hint">换手机、删主屏图标、清缓存之前先导一份，粘到备忘录里存着。</div>
+    </div>
   </div>
 <div class="sheet-foot">
     <button class="save" id="saveBtn">保存</button>
     <div class="danger-row">
       <button class="danger" id="clearLog">清空加班 / 请假标记</button>
+    </div>
+  </div>
+</div>
+
+<div class="data-modal" id="dataModal" role="dialog" aria-modal="true" aria-labelledby="dataTitle" aria-hidden="true">
+  <div class="data-card">
+    <h3 id="dataTitle">导出配置</h3>
+    <p class="data-sub" id="dataSub">整段复制走，换设备时再粘回来。</p>
+    <textarea class="data-text" id="dataText" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    <div class="data-actions">
+      <button type="button" class="ghost" id="dataAlt">复制</button>
+      <button type="button" class="save" id="dataPrimary">完成</button>
     </div>
   </div>
 </div>
@@ -707,6 +779,27 @@
   // ==== CORE:START ====
   var MIN_MS = 60000;
   var DAY_MS = 86400000;
+
+  // 配置默认值：导出 / 导入 / 迁移都以此为准
+  var DEFAULTS = {
+    salary: 5000,
+    workDays: 21.75,
+    workStart: "09:00",
+    workEnd: "17:00",
+    lunchEnabled: true,
+    lunchStart: "17:30",
+    lunchEnd: "18:00",
+    workweek: [1, 2, 3, 4, 5],
+    otStart: "17:00",
+    otEnd: "21:00",
+    otWeekday: 1.5,
+    otWeekend: 2,
+    otHoliday: 3,
+    payday: 15,
+    monthExpense: 2500,
+    saved: 0,
+    returnRate: 5
+  };
 
   function pad2(n){ return (n < 10 ? "0" : "") + n; }
 
@@ -1147,32 +1240,111 @@
     return pad2(h) + ":" + pad2(m) + ":" + pad2(s);
   }
 
+  /* ---------------- 配置备份：导出 / 导入（纯函数） ---------------- */
+
+  function isPlainObject(o){
+    return !!o && typeof o === "object" && !Array.isArray(o);
+  }
+
+  function timeOr(v, fallback){
+    if (typeof v !== "string" || !/^\d{1,2}:\d{1,2}$/.test(v)) return fallback;
+    return minToHm(hmToMin(v));
+  }
+
+  // 只认识 DEFAULTS 里的字段，其余忽略；数值统一夹到合理范围
+  function normalizeCfg(raw){
+    if (!isPlainObject(raw)) return null;
+    var c = Object.assign({}, DEFAULTS);
+    Object.keys(DEFAULTS).forEach(function(k){
+      if (raw[k] !== undefined && raw[k] !== null) c[k] = raw[k];
+    });
+    c.salary = Number(c.salary) || 0;
+    if (!(c.salary > 0)) return null;
+    var wd = Number(c.workDays);
+    c.workDays = wd > 0 ? Math.min(31, wd) : DEFAULTS.workDays;
+    c.workStart = timeOr(c.workStart, DEFAULTS.workStart);
+    c.workEnd = timeOr(c.workEnd, DEFAULTS.workEnd);
+    c.lunchEnabled = !!c.lunchEnabled;
+    c.lunchStart = timeOr(c.lunchStart, DEFAULTS.lunchStart);
+    c.lunchEnd = timeOr(c.lunchEnd, DEFAULTS.lunchEnd);
+
+    var ww = [];
+    if (Array.isArray(c.workweek)){
+      c.workweek.forEach(function(d){
+        var n = Math.round(Number(d));
+        if (n >= 0 && n <= 6 && ww.indexOf(n) < 0) ww.push(n);
+      });
+    }
+    c.workweek = ww.length ? ww : DEFAULTS.workweek.slice();
+
+    c.otStart = timeOr(c.otStart, DEFAULTS.otStart);
+    c.otEnd = timeOr(c.otEnd, DEFAULTS.otEnd);
+    ["otWeekday", "otWeekend", "otHoliday"].forEach(function(k){
+      var n = Number(c[k]);
+      c[k] = isFinite(n) ? Math.max(1, Math.min(5, n)) : DEFAULTS[k];
+    });
+    var pd = Math.round(Number(c.payday));
+    c.payday = isFinite(pd) ? Math.max(1, Math.min(31, pd)) : DEFAULTS.payday;
+    c.monthExpense = Math.max(0, Number(c.monthExpense) || 0);
+    c.saved = Math.max(0, Number(c.saved) || 0);
+    c.returnRate = Math.max(0, Math.min(20, Number(c.returnRate) || 0));
+    return c;
+  }
+
+  // 校验日期 key 与标记取值；off 与 ot/worked 互斥
+  function normalizeDayFlags(raw){
+    var out = {};
+    if (!isPlainObject(raw)) return out;
+    Object.keys(raw).forEach(function(k){
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
+      var t = new Date(k + "T00:00:00").getTime();
+      if (!isFinite(t) || dayKey(t) !== k) return;
+      var v = raw[k];
+      if (!isPlainObject(v)) return;
+      var f = {};
+      if (v.off) f.off = true;
+      if (v.ot) f.ot = true;
+      if (v.worked) f.worked = true;
+      if (f.off){
+        delete f.ot;
+        delete f.worked;
+      } else if (v.mult != null && (f.ot || f.worked)){
+        var m = Number(v.mult);
+        if (isFinite(m) && m > 0) f.mult = Math.max(1, Math.min(5, m));
+      }
+      if (Object.keys(f).length) out[k] = f;
+    });
+    return out;
+  }
+
+  // 解析一段备份文本；失败时 error 是给用户看的一句话
+  function decodeBackup(raw){
+    var out = { ok: false, error: "", version: 0, cfg: null, dayFlags: null, count: 0 };
+    if (typeof raw !== "string" || !raw.trim()){
+      out.error = "还没有内容，先把导出的文字粘进来";
+      return out;
+    }
+    var obj;
+    try { obj = JSON.parse(raw); }
+    catch (e){ out.error = "这段文字不是有效的备份，检查一下有没有复制漏"; return out; }
+    if (!isPlainObject(obj)){ out.error = "备份格式不对，应该是一段 JSON"; return out; }
+    var ver = Number(obj.v);
+    out.version = isFinite(ver) ? Math.round(ver) : 0;
+    var cfg = normalizeCfg(obj.cfg);
+    if (!cfg){ out.error = "这份备份里没有能用的配置（月薪要大于 0）"; return out; }
+    out.cfg = cfg;
+    out.dayFlags = normalizeDayFlags(obj.dayFlags);
+    out.count = Object.keys(out.dayFlags).length;
+    out.ok = true;
+    return out;
+  }
+
   // ==== CORE:END ====
 
   /* ==========================================================
      状态与存储
      ========================================================== */
   var KEY = "money-meter.v3";
-  var DEFAULTS = {
-    salary: 5000,
-    workDays: 21.75,
-    workStart: "09:00",
-    workEnd: "17:00",
-    lunchEnabled: true,
-    lunchStart: "17:30",
-    lunchEnd: "18:00",
-    workweek: [1, 2, 3, 4, 5],
-    otStart: "17:00",
-    otEnd: "21:00",
-    otWeekday: 1.5,
-    otWeekend: 2,
-    otHoliday: 3,
-    payday: 15,
-    monthExpense: 2500,
-    saved: 0,
-    returnRate: 5
-  };
-
   var state = {
     cfg: Object.assign({}, DEFAULTS),
     dayFlags: {},
@@ -1926,24 +2098,26 @@
     }
   });
 
-  function copy(text){
+  function copy(text){ copyText(text, "已复制，去发个朋友圈", "复制失败，长按数字截图吧"); }
+
+  function copyText(text, okMsg, failMsg){
     if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(function(){ toast("已复制，去发个朋友圈"); },
-        function(){ fallbackCopy(text); });
+      navigator.clipboard.writeText(text).then(function(){ toast(okMsg); },
+        function(){ fallbackCopy(text, okMsg, failMsg); });
     } else {
-      fallbackCopy(text);
+      fallbackCopy(text, okMsg, failMsg);
     }
   }
 
-  function fallbackCopy(text){
+  function fallbackCopy(text, okMsg, failMsg){
     var ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand("copy"); toast("已复制，去发个朋友圈"); }
-    catch (e) { toast("复制失败，长按数字截图吧"); }
+    try { document.execCommand("copy"); toast(okMsg || "已复制"); }
+    catch (e) { toast(failMsg || "复制失败，长按手动复制"); }
     document.body.removeChild(ta);
   }
 
@@ -2036,6 +2210,101 @@
     toast("已清空");
   });
 
+  /* ---------- 导出 / 导入配置 ---------- */
+  var dataModal = $("dataModal"), dataTitle = $("dataTitle"), dataSub = $("dataSub");
+  var dataText = $("dataText"), dataAlt = $("dataAlt"), dataPrimary = $("dataPrimary");
+  var dataMode = "export";
+
+  function encodeBackup(){
+    return JSON.stringify({ v: 3, cfg: state.cfg, dayFlags: state.dayFlags });
+  }
+
+  function openData(mode){
+    dataMode = mode;
+    if (mode === "export"){
+      dataText.value = encodeBackup();
+      dataText.scrollTop = 0;
+      dataText.readOnly = true;
+      dataTitle.textContent = "导出配置";
+      dataSub.textContent = "已经复制到剪贴板。整段粘到备忘录里，换设备时再导回来。";
+      dataAlt.textContent = "再复制一次";
+      dataPrimary.textContent = "完成";
+    } else {
+      dataText.value = "";
+      dataText.readOnly = false;
+      dataTitle.textContent = "导入配置";
+      dataSub.textContent = "把之前导出的那段文字整段粘进来，会覆盖当前配置和标记。";
+      dataAlt.textContent = "从剪贴板粘贴";
+      dataPrimary.textContent = "导入";
+    }
+    dataModal.classList.add("open");
+    dataModal.setAttribute("aria-hidden", "false");
+    if (mode === "import") setTimeout(function(){ dataText.focus(); }, 60);
+  }
+
+  function closeData(){
+    dataModal.classList.remove("open");
+    dataModal.setAttribute("aria-hidden", "true");
+  }
+
+  function versionNote(v){
+    if (v === 3) return "";
+    if (v > 0) return "（来自 v" + v + " 的备份，已按当前版本补全）";
+    return "（没有版本标记，已按当前版本补全）";
+  }
+
+  function doImport(){
+    var parsed = decodeBackup(dataText.value);
+    if (!parsed.ok){ toast(parsed.error); return; }
+    if (!confirm("导入会覆盖当前的配置和加班 / 请假标记，继续？")) return;
+    state.cfg = parsed.cfg;
+    state.dayFlags = parsed.dayFlags;
+    state.firstRun = false;
+    cache = {};
+    save();
+    closeData();
+    closeSheet();
+    render();
+    toast("已导入 · 月薪 ¥" + fmt0(state.cfg.salary) + " · " + parsed.count + " 天标记" + versionNote(parsed.version));
+  }
+
+  function pasteIntoData(){
+    if (navigator.clipboard && navigator.clipboard.readText){
+      navigator.clipboard.readText().then(function(t){
+        if (!t || !t.trim()){ toast("剪贴板是空的"); return; }
+        dataText.value = t;
+        toast("已粘贴，确认内容后点「导入」");
+      }, function(){ toast("浏览器不让读剪贴板，长按输入框手动粘贴"); });
+    } else {
+      toast("长按输入框，选「粘贴」");
+    }
+  }
+
+  $("exportBtn").addEventListener("click", function(){
+    openData("export");
+    copyText(dataText.value, "已复制，粘到备忘录里存好", "复制失败，长按文本框手动复制");
+  });
+
+  $("importBtn").addEventListener("click", function(){ openData("import"); });
+
+  dataPrimary.addEventListener("click", function(){
+    if (dataMode === "import") doImport();
+    else closeData();
+  });
+
+  dataAlt.addEventListener("click", function(){
+    if (dataMode === "export") copyText(dataText.value, "已复制", "复制失败，长按文本框手动复制");
+    else pasteIntoData();
+  });
+
+  dataModal.addEventListener("click", function(ev){
+    if (ev.target === dataModal) closeData();
+  });
+
+  document.addEventListener("keydown", function(ev){
+    if (ev.key === "Escape" && dataModal.classList.contains("open")) closeData();
+  });
+
   document.addEventListener("visibilitychange", function(){
     if (!document.hidden) render();
   });
@@ -2081,7 +2350,12 @@
     fmtWan: fmtWan,
     fmtMonths: fmtMonths,
     otNetMin: otNetMin,
-    openSheet: openSheet
+    openSheet: openSheet,
+    decodeBackup: decodeBackup,
+    encodeBackup: encodeBackup,
+    openData: openData,
+    closeData: closeData,
+    DEFAULTS: DEFAULTS
   };
 })();
 </script>

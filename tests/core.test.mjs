@@ -9,7 +9,8 @@ const A = new Function(
   core +
   '\nreturn {basePerSec,dailyWorkSec,shiftSegments,shiftDurationMin,shiftStartTs,shiftEndTs,' +
   'shiftDayFor,shiftMoney,computeTotals,statusAt,otRange,otSec,autoMult,nextPayday,isWorkdayAt,' +
-  'isOvernight,startOfDay,dayKey,fmt2,fmtRate,splitAmount,hmToMin,minToHm,fmtDur,otNetMin,monthWorkdayCount,fiTarget,monthsToFI,fmtWan,fmtMonths};'
+  'isOvernight,startOfDay,dayKey,fmt2,fmtRate,splitAmount,hmToMin,minToHm,fmtDur,otNetMin,monthWorkdayCount,fiTarget,monthsToFI,fmtWan,fmtMonths,' +
+  'decodeBackup,normalizeCfg,normalizeDayFlags,DEFAULTS};'
 )();
 
 let pass = 0, fail = 0;
@@ -231,6 +232,88 @@ ok('fmtMonths 196 → 16 年', A.fmtMonths(196) === '16 年', A.fmtMonths(196));
 ok('fmtMonths 84 → 7 年', A.fmtMonths(84) === '7 年', A.fmtMonths(84));
 ok('fmtWan 750000 → 75 万', A.fmtWan(750000) === '75 万', A.fmtWan(750000));
 ok('fmtWan 90000 → 9.0 万', A.fmtWan(90000) === '9.0 万', A.fmtWan(90000));
+
+console.log('\n[18] 导出 / 导入配置');
+const backup = JSON.stringify({
+  v: 3,
+  cfg: { ...dflt, monthExpense: 3000, saved: 12000 },
+  dayFlags: {
+    '2026-11-04': { ot: true, mult: 1.5 },
+    '2026-11-05': { off: true }
+  }
+});
+let p = A.decodeBackup(backup);
+ok('正常备份能解析', p.ok === true, p.error);
+eq('版本号保留', p.version, 3);
+eq('标记条数', p.count, 2);
+eq('月薪恢复', p.cfg.salary, 5000);
+eq('支出恢复', p.cfg.monthExpense, 3000);
+eq('存款恢复', p.cfg.saved, 12000);
+ok('加班标记恢复', p.dayFlags['2026-11-04'].ot === true && p.dayFlags['2026-11-04'].mult === 1.5);
+ok('请假标记恢复', p.dayFlags['2026-11-05'].off === true);
+ok('导出的配置字段齐全', Object.keys(A.DEFAULTS).every(k => p.cfg[k] !== undefined));
+
+// 验收：导出 → 清空标记并改月薪 → 导入 → 全部恢复
+const mutated = { ...p.cfg, salary: 9999 };
+let again = A.decodeBackup(backup);
+eq('改过的月薪被导入覆盖回去', again.cfg.salary, 5000);
+eq('清空的标记被找回', Object.keys(again.dayFlags).length, 2);
+ok('mutated 只是临时副本', mutated.salary === 9999 && again.cfg.salary === 5000);
+
+p = A.decodeBackup(JSON.stringify({ v: 2, cfg: { salary: 8000 } }));
+ok('旧版本 v2 仍能导入', p.ok === true, p.error);
+eq('旧版本号被识别', p.version, 2);
+ok('旧备份缺的字段补默认值', p.cfg.otEnd === '21:00', p.cfg.otEnd);
+eq('旧备份缺的周设置补默认值', p.cfg.workweek.length, 5);
+eq('缺省 dayFlags 当空对象', p.count, 0);
+
+p = A.decodeBackup(JSON.stringify({ cfg: { salary: '8000' } }));
+ok('月薪是字符串也能转数字', p.ok === true && p.cfg.salary === 8000);
+ok('没有版本号也允许导入', p.version === 0);
+
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, hacker: 1 } }));
+ok('未知字段被忽略', p.ok === true && !('hacker' in p.cfg));
+
+ok('月薪 0 拒绝导入', A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 0 } })).ok === false);
+ok('空文本拒绝导入', A.decodeBackup('   ').ok === false);
+ok('非 JSON 拒绝导入', A.decodeBackup('随便一段话').ok === false);
+ok('数组拒绝导入', A.decodeBackup('[1,2,3]').ok === false);
+ok('缺 cfg 拒绝导入', A.decodeBackup(JSON.stringify({ v: 3, dayFlags: {} })).ok === false);
+ok('解析失败有给人看的提示', A.decodeBackup('x').error.length > 0);
+
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000 }, dayFlags: 'nope' }));
+ok('dayFlags 类型不对 → 空标记但配置可用', p.ok === true && p.count === 0);
+
+p = A.decodeBackup(JSON.stringify({
+  v: 3, cfg: { salary: 5000 },
+  dayFlags: {
+    '2026-11-04': { ot: true, mult: 1.5 },
+    '2026-02-31': { ot: true },
+    'foo': { off: true },
+    '2026-11-05': 'nope',
+    '2026-11-06': { off: true, ot: true, worked: true, mult: 2 },
+    '2026-11-07': { mult: 2 }
+  }
+}));
+eq('非法日期 / 非法条目被丢掉', p.count, 2);
+ok('请假优先，清掉加班和上班', p.dayFlags['2026-11-06'].off === true
+  && !p.dayFlags['2026-11-06'].ot && !p.dayFlags['2026-11-06'].worked);
+ok('只有倍率没有状态 → 丢弃', !p.dayFlags['2026-11-07']);
+
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 1 }, dayFlags: { '2026-11-04': { ot: true, mult: 99 } } }));
+eq('离谱倍率夹到 5', p.dayFlags['2026-11-04'].mult, 5);
+
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, workweek: [1, 1, 9, '2'] } }));
+ok('星期去重并过滤越界', p.cfg.workweek.length === 2 && p.cfg.workweek.indexOf(1) >= 0 && p.cfg.workweek.indexOf(2) >= 0);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, workweek: [] } }));
+eq('空星期回落到默认', p.cfg.workweek.length, 5);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, payday: 99, returnRate: 50 } }));
+eq('发薪日夹到 31', p.cfg.payday, 31);
+eq('年化收益夹到 20', p.cfg.returnRate, 20);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, workStart: '9:5', workEnd: 'abc' } }));
+ok('时间格式被规整', p.cfg.workStart === '09:05' && p.cfg.workEnd === '17:00', p.cfg.workStart + ' / ' + p.cfg.workEnd);
+p = A.decodeBackup(JSON.stringify({ v: 3, cfg: { salary: 5000, workDays: 0 } }));
+eq('计薪天数 0 → 默认值', p.cfg.workDays, 21.75);
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 通过 ${pass} 项，失败 ${fail} 项\n`);
 process.exit(fail === 0 ? 0 : 1);
