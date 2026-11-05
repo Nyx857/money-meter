@@ -251,17 +251,25 @@
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   }
   .history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12.5px;color:#aab3bf}
-  .history-head span:last-child{font-size:11px;color:#7c8592;font-variant-numeric:tabular-nums}
+  .history-head span:last-child{
+    flex:1 1 auto;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-size:11px;color:#7c8592;font-variant-numeric:tabular-nums;
+  }
+  .history-head span.sel{color:#e8c46a;font-size:11.5px}
+  .history-head.detailing span:first-child{display:none}
+  .history-head.detailing span:last-child{text-align:left}
   .heatmap{
     display:grid;grid-template-columns:repeat(12,1fr);gap:4px;
     width:min(100%,280px);margin:2px auto;
   }
   .hm-cell{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.045);cursor:pointer}
+  .hm-cell:active{transform:scale(.88)}
   .hm-cell.l1{background:rgba(247,201,72,.16)}
   .hm-cell.l2{background:rgba(247,201,72,.36)}
   .hm-cell.l3{background:rgba(247,201,72,.62)}
   .hm-cell.l4{background:rgba(247,201,72,.92)}
   .hm-cell.today{box-shadow:inset 0 0 0 1px rgba(255,255,255,.8)}
+  .hm-cell.sel{outline:2px solid rgba(255,255,255,.9);outline-offset:1px}
   .hm-cell.future{opacity:.18;cursor:default}
   .hm-cell.before{opacity:.4}
   .history-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:#5d6673}
@@ -792,7 +800,7 @@
   </section>
 
   <section class="history-card" id="historyCard" style="display:none">
-    <div class="history-head">
+    <div class="history-head" id="historyHead">
       <span>最近 12 周</span>
       <span id="historyRange">—</span>
     </div>
@@ -1185,8 +1193,13 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.2";
+  var APP_VERSION = "1.4.3";
   var CHANGELOG = [
+    { version: "1.4.3", date: "2026-11-05", items: [
+      "足迹格子更好点了：点一下，当天详情常驻显示在卡片顶部，再点一次取消",
+      "点偏到格子之间的缝里也会命中最近的格子，不用瞄准",
+      "选中的格子加白色描边，不再只靠一闪而过的提示"
+    ] },
     { version: "1.4.2", date: "2026-11-05", items: [
       "夜班过了零点后「足迹」不再停住：累计入账和当天格子继续按昨天那一班实时累加",
       "跨月夜班（比如 10/31 上到 11/1）不会把这一班的钱算进新月份"
@@ -2194,6 +2207,7 @@
     }),
     funLine: $("funLine"), explainCard: $("explainCard"), toast: $("toast"),
     historyCard: $("historyCard"), heatmap: $("heatmap"), historyRange: $("historyRange"),
+    historyHead: $("historyHead"),
     sheet: $("sheet"), backdrop: $("backdrop"), settingsBtn: $("settingsBtn"),
     sheetTabs: $("sheetTabs"), sheetBody: $("sheetBody"), sheetFoot: $("sheetFoot"),
     updateDot: $("updateDot"), gearDot: $("gearDot"),
@@ -2521,6 +2535,7 @@
   }
 
   var hmSig = "";
+  var hmSel = "";   // 当前选中的那一天（点格子看详情；再点一次取消）
   function renderHistoryHeatmap(now){
     var cells = heatmapCells(state.history, now, 12);
     var full = dailyWorkSec(state.cfg) || 1;
@@ -2530,12 +2545,11 @@
     var todayLive = (live && !state.history[liveKey]) ? live : null;
     var sig = state.historyRev + "|" + Object.keys(state.history).length + "|" + todayK + "|" + liveKey + "|" +
       (todayLive ? Math.floor(todayLive.sec / 60) + ":" + Math.round(todayLive.amount) : "-") + "|" +
-      state.recordStart + "|" + Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0);
+      state.recordStart + "|" + Math.round(full) + "|" + Math.round(Number(state.cfg.salary) || 0) + "|" + hmSel;
     if (sig === hmSig) return;
     hmSig = sig;
 
     var html = "";
-    var first = cells[0].key, last = cells[cells.length - 1].key;
     for (var i = 0; i < cells.length; i++){
       var c = cells[i];
       var cSec = c.sec, cAmt = c.amount;
@@ -2543,18 +2557,61 @@
       var ratio = full > 0 ? cSec / full : 0;
       var lvl = ratio <= 0 ? 0 : ratio < 0.5 ? 1 : ratio < 0.95 ? 2 : ratio < 1.25 ? 3 : 4;
       var cls = "hm-cell" + (lvl ? " l" + lvl : "") + (c.today ? " today" : "") +
-        (c.future ? " future" : "") + (state.recordStart && c.key < state.recordStart ? " before" : "");
+        (c.future ? " future" : "") + (state.recordStart && c.key < state.recordStart ? " before" : "") +
+        (c.key === hmSel ? " sel" : "");
       var tip = c.key.slice(5).replace("-", "/") +
         (cSec > 0 ? " · " + fmtHour(cSec / 3600) + " · ¥" + fmt2(cAmt) : " · 没有记录");
-      html += '<div class="' + cls + '" data-key="' + c.key + '" data-sec="' + Math.round(cSec) +
+      html += '<div class="' + cls + '" role="button" tabindex="-1" data-key="' + c.key + '" data-sec="' + Math.round(cSec) +
         '" data-amount="' + (Math.round(cAmt * 100) / 100) + '" title="' + tip + '"></div>';
     }
     el.heatmap.innerHTML = html;
-    var f = new Date(first + "T00:00:00"), l = new Date(last + "T00:00:00");
-    if (el.historyRange){
-      el.historyRange.textContent = (f.getMonth() + 1) + "/" + f.getDate() +
-        " – " + (l.getMonth() + 1) + "/" + l.getDate();
+    renderHistoryHead();
+  }
+
+  // 选中的那天显示在卡片顶部（常驻，不靠一闪而过的提示）；没选中时恢复日期范围
+  function renderHistoryHead(){
+    var cells = el.heatmap.querySelectorAll(".hm-cell");
+    if (!cells.length) return;
+    var target = null;
+    for (var i = 0; i < cells.length; i++){
+      var on = !!hmSel && cells[i].getAttribute("data-key") === hmSel;
+      cells[i].classList.toggle("sel", on);
+      if (on) target = cells[i];
     }
+    if (hmSel && !target){
+      hmSel = "";
+      hmSig = "";
+    }
+    if (target){
+      var sec = Number(target.getAttribute("data-sec")) || 0;
+      var amt = Number(target.getAttribute("data-amount")) || 0;
+      var d = new Date(target.getAttribute("data-key") + "T00:00:00");
+      var txt = (d.getMonth() + 1) + "/" + d.getDate() + " 周" + WEEK_CN[d.getDay()] + " · ";
+      txt += (sec > 0 || amt > 0) ? (fmtHour(sec / 3600) + " · ¥" + fmt2(amt)) : "没有记录";
+      el.historyHead.classList.add("detailing");
+      el.historyRange.textContent = txt;
+      el.historyRange.classList.add("sel");
+      return;
+    }
+    el.historyHead.classList.remove("detailing");
+    var f = new Date(cells[0].getAttribute("data-key") + "T00:00:00");
+    var l = new Date(cells[cells.length - 1].getAttribute("data-key") + "T00:00:00");
+    el.historyRange.textContent = (f.getMonth() + 1) + "/" + f.getDate() +
+      " – " + (l.getMonth() + 1) + "/" + l.getDate();
+    el.historyRange.classList.remove("sel");
+  }
+
+  // 点在格子缝里也算：取最近的那个格子，20px 的小方块不用瞄准
+  function nearestHeatmapCell(x, y){
+    var cells = el.heatmap.querySelectorAll(".hm-cell");
+    var best = null, bestD = 30 * 30;
+    for (var i = 0; i < cells.length; i++){
+      var r = cells[i].getBoundingClientRect();
+      var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+      var d = dx * dx + dy * dy;
+      if (d < bestD){ bestD = d; best = cells[i]; }
+    }
+    return best;
   }
 
   /* ==========================================================
@@ -3088,13 +3145,12 @@
 
   el.heatmap.addEventListener("click", function(ev){
     var cell = ev.target.closest ? ev.target.closest(".hm-cell") : null;
+    if (!cell && isFinite(ev.clientX) && isFinite(ev.clientY)) cell = nearestHeatmapCell(ev.clientX, ev.clientY);
     if (!cell) return;
-    var sec = Number(cell.getAttribute("data-sec")) || 0;
-    var amt = Number(cell.getAttribute("data-amount")) || 0;
     var key = cell.getAttribute("data-key") || "";
-    var day = key.slice(5).replace("-", "/");
-    if (!(sec > 0) && !(amt > 0)){ toast(day + " 没有记录"); return; }
-    toast(day + " · " + fmtHour(sec / 3600) + " · ¥" + fmt2(amt));
+    if (!key) return;
+    hmSel = (hmSel === key) ? "" : key;
+    renderHistoryHead();
   });
 
   document.querySelectorAll(".tabs button").forEach(function(btn){
