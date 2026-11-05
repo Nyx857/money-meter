@@ -31,7 +31,9 @@
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html{
-    height:100%;overflow:hidden;
+    /* 用 100vh 而不是 100%：iOS 26 里 100%/100dvh 可能按可视视口（少一截）算，
+       会把背景渐变裁在下面，露出一条底色黑边 */
+    height:100vh;height:var(--bg-h,100vh);overflow:hidden;
     /* 背景画在 html 上：iOS 工具栏 / 安全区露出来的地方也是同一片渐变，不会出现黑边 */
     background:
       radial-gradient(145% 58% at 50% 101%,rgba(247,201,72,.26) 0%,rgba(247,201,72,.085) 42%,rgba(8,9,11,0) 80%),
@@ -1193,8 +1195,12 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.4";
+  var APP_VERSION = "1.4.5";
   var CHANGELOG = [
+    { version: "1.4.5", date: "2026-11-06", items: [
+      "主屏网页应用（iOS 26）底部那条黑边：页面高度改用 100vh，背景渐变不再被可视视口裁掉",
+      "底部安全区 / 工具栏下方保持整片暖色，不再出现硬边"
+    ] },
     { version: "1.4.4", date: "2026-11-06", items: [
       "底部不再黑一截：背景渐变改画到页面最底层，iPhone 安全区 / 浏览器工具栏下方也是同一片暖色",
       "底部暖光加强，短屏藏掉页脚时也不会露出一条硬黑边"
@@ -3765,6 +3771,13 @@
       var vv = window.visualViewport;
       var h = (vv && vv.height) || window.innerHeight || 0;
       if (h > 300) document.documentElement.style.setProperty("--vh100", h + "px");
+      // 背景要铺满整块屏幕：iOS 26 主屏网页应用的视觉视口会比屏幕矮一截（约 59pt），
+      // 只按它铺会在底部露出底色黑边；这里取 innerHeight / screen.height 的较大值。
+      var bgH = Math.max(h, window.innerHeight || 0);
+      var standalone = navigator.standalone === true ||
+        (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+      if (standalone && window.screen && window.screen.height) bgH = Math.max(bgH, window.screen.height);
+      if (bgH > 300) document.documentElement.style.setProperty("--bg-h", bgH + "px");
       requestAnimationFrame(updateAppOverflow);
     }
     update();
