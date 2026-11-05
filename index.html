@@ -30,7 +30,15 @@
     --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html{height:100%;overflow:hidden}
+  html{
+    height:100%;overflow:hidden;
+    /* 背景画在 html 上：iOS 工具栏 / 安全区露出来的地方也是同一片渐变，不会出现黑边 */
+    background:
+      radial-gradient(145% 58% at 50% 101%,rgba(247,201,72,.26) 0%,rgba(247,201,72,.085) 42%,rgba(8,9,11,0) 80%),
+      radial-gradient(120% 70% at 50% -18%,#1b2129 0%,rgba(8,9,11,0) 62%),
+      linear-gradient(to top,rgba(255,255,255,.05) 0%,rgba(8,9,11,0) 26%),
+      var(--bg);
+  }
   body{
     margin:0;
     height:100%;
@@ -38,21 +46,13 @@
     min-height:100vh;
     min-height:100dvh;
     min-height:var(--vh100, 100dvh);
-    background:var(--bg);
+    background:transparent;
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
     overscroll-behavior:none;
     -webkit-font-smoothing:antialiased;
     user-select:none;
     -webkit-user-select:none;
-  }
-  body::before{
-    content:"";
-    position:fixed;inset:0;pointer-events:none;
-    background:
-      radial-gradient(120% 70% at 50% -18%,#1b2129 0%,rgba(8,9,11,0) 62%),
-      radial-gradient(120% 42% at 50% 104%,rgba(247,201,72,.13) 0%,rgba(247,201,72,.04) 45%,rgba(8,9,11,0) 78%),
-      linear-gradient(to top,rgba(255,255,255,.028) 0%,rgba(8,9,11,0) 26%);
   }
   .glow{
     position:fixed;left:50%;top:24%;width:min(120vw,620px);height:min(120vw,620px);
@@ -1193,8 +1193,12 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.3";
+  var APP_VERSION = "1.4.4";
   var CHANGELOG = [
+    { version: "1.4.4", date: "2026-11-06", items: [
+      "底部不再黑一截：背景渐变改画到页面最底层，iPhone 安全区 / 浏览器工具栏下方也是同一片暖色",
+      "底部暖光加强，短屏藏掉页脚时也不会露出一条硬黑边"
+    ] },
     { version: "1.4.3", date: "2026-11-05", items: [
       "足迹格子更好点了：点一下，当天详情常驻显示在卡片顶部，再点一次取消",
       "点偏到格子之间的缝里也会命中最近的格子，不用瞄准",
