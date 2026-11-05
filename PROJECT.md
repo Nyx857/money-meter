@@ -11,7 +11,7 @@
 - 线上：https://money-meter.pages.dev
 - 仓库：https://github.com/Nyx857/money-meter （Public，main）
 - 部署：Cloudflare Pages，**push 自动部署**，约 1 分钟
-- 当前版本：**v1.4.5**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
+- 当前版本：**v1.5.0**（版本号和更新日志在 `APP_VERSION` / `CHANGELOG`，设置里的「更新」页直接渲染）
 
 ## 2. 技术形态
 
@@ -50,7 +50,7 @@ tests/core.test.mjs 计薪内核单元测试（276 项）
 DOM 引用  → el = {...}
 render()  → 每帧一次（rAF），按 state.mode 分支
 交互      → 加班/不上班/节假日按钮、倍率 chips、tab、分享、设置面板
-记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）
+记录      → recentRecordKeys() / recordStatus() / recordFlagFor()（CORE 纯函数）；面板可补录、编辑、删除；「从哪天开始记录」改 recordStart 后从那天重扫补记
 足迹      → snapshotDay() 每班结束存一条；ensureHistory() 从最后一条快照之后增量补记；dropHistory() 改标记立即重算；historyLive() 算当前这一班（跨零点挂昨天）；historyTotals()/heatmapCells() 汇总
 排班      → isWorkdayAt() 按 cfg.schedule 走 workweek 或 cycle；循环用 isCycleWorkday() / cycleAvgDays()
 备份      → encodeBackup() / decodeBackup()（CORE 纯函数，导入走 normalizeCfg / normalizeDayFlags）
@@ -193,6 +193,8 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | 设置页能左右滑 | `overflow-y:auto` 隐式把 `overflow-x` 也变成 `auto`，iOS 可横向橡皮筋 | `.sheet-body` 显式 `overflow-x:hidden` + `touch-action:pan-y`；`.sheet-tabs` 同样处理 |
 | 底部安全区纯黑 | 背景 radial 在 108% 处，可视区底部只剩底色 | v1.3.5 先在 `body::before` 上补暖色渐变；v1.4.4 发现固定层盖不到 iOS 安全区，改成把渐变画在 **`html`**（canvas）上并撤掉 `body::before`，同时加强底部暖光 |
 | 底部又露出黑边 | `body::before` 是 `position:fixed`，iOS 工具栏 / 安全区露出来的那条只剩 `body` 的底色 | 背景统一放 `html`，`body` 透明；底部 radial 中心放 101%、透明度 .26，短屏也连续 |
+| 记录面板最后一条被 Home 条挡住 | 记录弹层没有 footer，`.sheet-body` 也没留安全区 | v1.5.0：`.log-sheet .sheet-body{padding-bottom:calc(var(--safe-b)+16px)}` |
+| 记录面板只能删了重加 | 没有编辑入口；同一天再点一次也不知道是覆盖 | v1.5.0：每条记录加铅笔，点一下带出原来的类型，按钮变「更新这一天」 |
 | 主屏网页应用底部还是黑一截（iOS 26） | 页面 `--vh100` / `html{height:100%}` 按**可视视口**算，比屏幕少约 59pt；背景渐变被裁在可视视口底，下面一段只剩 `--bg` 底色 | 已修：`html` 高度改用 **`100vh`**，并在 standalone 下用 `--bg-h = max(视觉视口, innerHeight, screen.height)` 兜底；渐变铺满整个 canvas，`.app` 仍用 `--vh100`，内容不会被工具栏盖住 |
 | 桌面打开黑屏几秒 | PWA 冷启动每次走网络，HTML 到之前只有 launch screen | `sw.js` 导航缓存；第一次打开建立缓存，之后秒开/离线可开；`_headers` 给 index/sw 设 no-cache |
 | iOS PWA「打不开网页」 | 缓存了 Cloudflare 的 `Content-Encoding: br` 响应，Safari 回放时解码失败 | 写缓存前用 `cleanResponse()` 剥掉编码头；导航失败绝不用 `Response.error()` |
@@ -231,6 +233,7 @@ curl -s https://money-meter.pages.dev/ | grep -c "<新加的标志字符串>"
 | v1.4.3 | 足迹格子点按反馈改成常驻详情（卡片顶部）+ 选中描边 + 点缝里命中最近格子 |
 | v1.4.4 | 修底部安全区 / 工具栏下方黑边：背景渐变从 `body::before` 移到 `html` canvas，底部暖光加强 |
 | v1.4.5 | 修 iOS 26 主屏网页应用底部黑边：`html` 高度改 `100vh`，背景渐变不再被可视视口裁掉 |
+| v1.5.0 | 自由 / 足迹排版跟其他页统一；数据页可设「从哪天开始记录」（第一天上工补记）；记录可编辑 + 安全区修复 |
 
 ## 11. 待办清单
 
@@ -257,6 +260,7 @@ v1.2 把原 P0–P3 做完，v1.3 加了循环排班和更新日志。排序依�
 - **v1.4.2 跨零点实时**：`historyLive()` 按 `shiftDayFor()` 取当前班次，夜班凌晨的实时金额挂在昨天那一班；月度卡片只在同一月时并入实时，跨月不串。内核测试 276 项。
 - **v1.4.3 格子点按**：点格子改成常驻详情（卡片顶部的日期范围位），选中格子白描边，再点取消；点进格子缝里按坐标找最近格子；提示不再依赖一闪而过的 toast。
 - **v1.4.4 底部黑边**：背景渐变整体搬到 `html`（canvas），`body` 透明；底部 radial 中心 101% / 透明度 .26，iPhone 安全区与 Safari 工具栏下方连续暖色，短屏也不再露出硬黑边。
+- **v1.5.0 布局 / 记录**：「自由」的说明卡挪到加班卡/热力图同一位置，热力图收窄到 248px，852 高度下五页都不再藏页脚；数据页新增「从哪天开始记录」，从第一天上工一次性补记（最多 20 年，已有记录不删）；记录面板每条加铅笔编辑，底部补安全区。
 - **v1.4.5 iOS 26 底部黑边**：主屏网页应用里 `--vh100` / `100%` 按可视视口算，页面比屏幕矮约 59pt，背景渐变被裁。`html` 改 `height:100vh` + `--bg-h`（standalone 下取 `max(视觉视口, innerHeight, screen.height)`），渐变覆盖整块 canvas；`.app` 仍用 `--vh100` 保证内容不被工具栏盖住。
 
 ### 候选（未排期）

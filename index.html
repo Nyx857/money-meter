@@ -262,7 +262,7 @@
   .history-head.detailing span:last-child{text-align:left}
   .heatmap{
     display:grid;grid-template-columns:repeat(12,1fr);gap:4px;
-    width:min(100%,280px);margin:2px auto;
+    width:min(100%,248px);margin:2px auto;
   }
   .hm-cell{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.045);cursor:pointer}
   .hm-cell:active{transform:scale(.88)}
@@ -579,6 +579,7 @@
   /* ---------- 记录 ---------- */
   .log-backdrop{z-index:60}
   .log-sheet{z-index:61}
+  .log-sheet .sheet-body{padding-bottom:calc(var(--safe-b) + 16px)}
   .log-add{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-top:2px}
   .log-add input[type="date"], .log-add select{
     width:100%;height:44px;padding:0 10px;border-radius:12px;
@@ -622,6 +623,14 @@
     display:grid;place-items:center;transition:.16s;
   }
   .log-del:active{color:var(--red);border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.07)}
+  .log-actions{margin-left:auto;display:flex;gap:6px;flex:none}
+  .log-edit{
+    width:30px;height:30px;flex:none;border-radius:9px;
+    border:1px solid var(--line);background:transparent;color:#6a737f;
+    cursor:pointer;display:grid;place-items:center;transition:.16s;
+  }
+  .log-edit svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .log-edit:active{color:#ffe2a0;border-color:rgba(247,201,72,.35);background:rgba(247,201,72,.08)}
   .log-empty{font-size:11.5px;color:#4b545f;text-align:center;padding:26px 12px;line-height:1.7}
   .log-empty[hidden]{display:none}
   .log-older{font-size:10.5px;color:#4b545f;text-align:center;padding:12px 0 4px;line-height:1.6}
@@ -813,17 +822,17 @@
     </div>
   </section>
 
+  <div class="explain" id="explainCard">
+    <div class="explain-h">4% 法则是什么</div>
+    <p>存够一年花销的 <b>25 倍</b>，往后每年只取 4% 过日子，本金大概率不会花完。这是美国 30 年数据的回测结论，不是收益保证。</p>
+    <p>所以<b>自由线 = 年支出 × 25</b>。花得越少，这条线越低，你要熬的时间也越短 —— 这就是"少花"比"多挣"狠的地方。</p>
+  </div>
+
   <div class="grid">
     <div class="tile"><div class="k" id="k1">本月已入账</div><div class="v" id="v1">¥0</div><div class="s" id="s1a">—</div><div class="s" id="s1b">—</div></div>
     <div class="tile"><div class="k" id="k2">距离发薪</div><div class="v" id="v2">— 天</div><div class="s" id="s2a">—</div><div class="s" id="s2b">—</div></div>
     <div class="tile"><div class="k" id="k3">本月加班</div><div class="v" id="v3">¥0</div><div class="s" id="s3a">—</div><div class="s" id="s3b">—</div></div>
     <div class="tile"><div class="k" id="k4">时薪 / 日薪</div><div class="v" id="v4">¥0</div><div class="s" id="s4a">—</div><div class="s" id="s4b">—</div></div>
-  </div>
-
-  <div class="explain" id="explainCard">
-    <div class="explain-h">4% 法则是什么</div>
-    <p>存够一年花销的 <b>25 倍</b>，往后每年只取 4% 过日子，本金大概率不会花完。这是美国 30 年数据的回测结论，不是收益保证。</p>
-    <p>所以<b>自由线 = 年支出 × 25</b>。花得越少，这条线越低，你要熬的时间也越短 —— 这就是"少花"比"多挣"狠的地方。</p>
   </div>
 
   <div class="fun" id="funLine">—</div>
@@ -1019,6 +1028,12 @@
       <div class="section">记录</div>
 
       <div class="field">
+        <label for="inRecordStart">从哪天开始记录</label>
+        <input type="date" id="inRecordStart">
+        <div class="hint">设成第一天上工，会按现在的排班把之前的班补上（估算）。已有记录不会删。</div>
+      </div>
+
+      <div class="field">
         <label>补录漏掉的标记</label>
         <div class="data-row">
           <button type="button" class="data-btn" id="openLogBtn">
@@ -1195,8 +1210,14 @@
   }
 
   // 当前版本 + 更新日志（发版时改这里，设置面板直接渲染）
-  var APP_VERSION = "1.4.5";
+  var APP_VERSION = "1.5.0";
   var CHANGELOG = [
+    { version: "1.5.0", date: "2026-11-06", items: [
+      "自由 / 足迹两页的排版跟其他页统一：说明卡挪到和加班卡同一个位置，热力图收窄，页脚不再被挤掉",
+      "设置 → 数据新增「从哪天开始记录」：填第一天上工，会按排班把之前的班补上（已有记录不删）",
+      "记录面板每条可以编辑：点铅笔带出原来的类型，改完点「更新这一天」",
+      "记录面板底部留出安全区，最后一条不再被 Home 指示条挡住；提示不再一律说「本月」"
+    ] },
     { version: "1.4.5", date: "2026-11-06", items: [
       "主屏网页应用（iOS 26）底部那条黑边：页面高度改用 100vh，背景渐变不再被可视视口裁掉",
       "底部安全区 / 工具栏下方保持整片暖色，不再出现硬边"
@@ -2155,16 +2176,18 @@
   // 自动补记：从「最后一条快照之后」扫到今天的每个已结束班次，各存一条快照。
   // 没有快照时从 recordStart 开始；单次最多扫 1830 天（约 5 年，实测 ~6ms），
   // 更长的空档下一分钟会从上次停下的地方接着补，不会卡住。
-  function ensureHistory(now){
+  function ensureHistory(now, maxDays, fromTs){
     var changed = false;
     if (!isValidDateKey(state.recordStart)){
       state.recordStart = dayKey(startOfMonth(now));
       changed = true;
     }
-    var start = historyBackfillStart(state.history, state.recordStart, now);
+    // fromTs：改了「从哪天开始记录」时从那天重扫；平时只从最后一条快照之后增量补
+    var start = (fromTs && isFinite(fromTs)) ? fromTs : historyBackfillStart(state.history, state.recordStart, now);
     var end = startOfDay(now);
+    var cap = maxDays || 1830;
     var d = start, guard = 0;
-    while (d <= end && guard++ < 1830){
+    while (d <= end && guard++ < cap){
       var k = dayKey(d);
       if (!state.history[k]){
         var snap = snapshotDay(state.cfg, state.dayFlags, d, now);
@@ -2217,7 +2240,7 @@
     }),
     funLine: $("funLine"), explainCard: $("explainCard"), toast: $("toast"),
     historyCard: $("historyCard"), heatmap: $("heatmap"), historyRange: $("historyRange"),
-    historyHead: $("historyHead"),
+    historyHead: $("historyHead"), inRecordStart: $("inRecordStart"),
     sheet: $("sheet"), backdrop: $("backdrop"), settingsBtn: $("settingsBtn"),
     sheetTabs: $("sheetTabs"), sheetBody: $("sheetBody"), sheetFoot: $("sheetFoot"),
     updateDot: $("updateDot"), gearDot: $("gearDot"),
@@ -3388,6 +3411,8 @@
     el.inCycleWork.value = c.cycleWork || 4;
     el.inCycleRest.value = (c.cycleRest === 0 || c.cycleRest) ? c.cycleRest : 1;
     el.inCycleStart.value = isValidDateKey(c.cycleStart) ? c.cycleStart : dayKey(Date.now());
+    el.inRecordStart.value = isValidDateKey(state.recordStart) ? state.recordStart : dayKey(Date.now());
+    el.inRecordStart.max = dayKey(Date.now());
     el.introCard.hidden = !state.firstRun;
     updatePreview();
     setSheetPane(hasUnseenUpdate() ? "update" : "shift");
@@ -3487,14 +3512,25 @@
     cfg.otHoliday = Math.max(1, cfg.otHoliday);
     cfg.payday = Math.max(1, Math.min(31, cfg.payday));
 
+    var rs = el.inRecordStart.value;
+    if (!isValidDateKey(rs)){ toast("选一下从哪天开始记录"); return; }
+    if (rs > dayKey(Date.now())){ toast("开始记录的日期不能晚于今天"); return; }
+
+    var movedStart = rs !== state.recordStart;
+    var beforeDays = Object.keys(state.history).length;
     state.cfg = cfg;
     state.firstRun = false;
-    ensureHistory(Date.now());
+    state.recordStart = rs;
+    // 改早的话一次补记到起点（最多 20 年），不要等一分钟一分钟地续
+    if (movedStart) ensureHistory(Date.now(), 8000, new Date(rs + "T00:00:00").getTime());
+    else ensureHistory(Date.now());
+    var addedDays = Object.keys(state.history).length - beforeDays;
     cache = {};
     save();
     closeSheet();
     render();
-    toast("保存好了 · 每班 " + fmtDur(dailyWorkSec(cfg) / 60) + " · ¥" + fmtRate(basePerSec(cfg)) + "/秒");
+    toast("保存好了 · 每班 " + fmtDur(dailyWorkSec(cfg) / 60) + " · ¥" + fmtRate(basePerSec(cfg)) + "/秒"
+      + (addedDays > 0 ? " · 补记了 " + addedDays + " 天" : ""));
   });
 
   el.clearLog.addEventListener("click", function(){
@@ -3637,17 +3673,26 @@
     logBackdrop.classList.remove("open");
   }
 
+  function syncLogAction(){
+    var st = recordStatus(state.cfg, state.dayFlags, logDate.value);
+    var btn = $("logAdd");
+    btn.textContent = st ? "更新这一天" : "记上这一天";
+    btn.classList.toggle("updating", !!st);
+  }
+
   function updateLogHint(){
     var k = logDate.value;
     var ts = new Date(k + "T00:00:00").getTime();
+    syncLogAction();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(k || "") || !isFinite(ts) || dayKey(ts) !== k){
       logHint.textContent = "选个日期和类型，就能补上那一天。";
       return;
     }
     var d = new Date(ts);
     var wd = isWorkdayAt(state.cfg, ts) ? "工作日" : "休息日";
+    var st = recordStatus(state.cfg, state.dayFlags, k);
     logHint.textContent = (d.getMonth() + 1) + " 月 " + d.getDate() + " 日 周" + WEEK_CN[d.getDay()]
-      + " · " + wd + " · 补录会立刻算进本月金额";
+      + " · " + wd + (st ? " · 这天已有记录，点「更新这一天」可以改" : " · 补录会立刻重算金额");
   }
 
   function logRowEl(key){
@@ -3670,6 +3715,13 @@
     tag.className = "log-tag " + st.key;
     tag.textContent = st.text;
 
+    var edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "log-edit";
+    edit.setAttribute("data-key", key);
+    edit.setAttribute("aria-label", "编辑 " + key + " 的记录");
+    edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 5.5l4 4"/></svg>';
+
     var del = document.createElement("button");
     del.type = "button";
     del.className = "log-del";
@@ -3677,9 +3729,14 @@
     del.setAttribute("aria-label", "删除 " + key + " 的记录");
     del.textContent = "×";
 
+    var actions = document.createElement("div");
+    actions.className = "log-actions";
+    actions.appendChild(edit);
+    actions.appendChild(del);
+
     row.appendChild(date);
     row.appendChild(tag);
-    row.appendChild(del);
+    row.appendChild(actions);
     return row;
   }
 
@@ -3710,16 +3767,33 @@
     cache = {};
     render();
     renderLog();
+    updateLogHint();
     toast((had ? "已更新 " : "已记上 ") + (new Date(ts).getMonth() + 1) + "/" + new Date(ts).getDate());
   }
 
   $("openLogBtn").addEventListener("click", openLog);
   $("closeLog").addEventListener("click", closeLog);
   logBackdrop.addEventListener("click", closeLog);
-  logDate.addEventListener("change", updateLogHint);
+  logDate.addEventListener("change", function(){
+    var st = recordStatus(state.cfg, state.dayFlags, logDate.value);
+    if (st) logType.value = st.key;
+    updateLogHint();
+  });
   $("logAdd").addEventListener("click", addLog);
 
   logList.addEventListener("click", function(ev){
+    var edit = ev.target.closest ? ev.target.closest(".log-edit") : null;
+    if (edit){
+      var ek = edit.getAttribute("data-key");
+      var est = recordStatus(state.cfg, state.dayFlags, ek);
+      if (!est) return;
+      logDate.value = ek;
+      logType.value = est.key;
+      updateLogHint();
+      logSheet.querySelector(".sheet-body").scrollTop = 0;
+      toast("改完点「更新这一天」");
+      return;
+    }
     var btn = ev.target.closest ? ev.target.closest(".log-del") : null;
     if (!btn) return;
     var k = btn.getAttribute("data-key");
